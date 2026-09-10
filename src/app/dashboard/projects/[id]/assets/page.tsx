@@ -9,6 +9,7 @@ type Asset = {
   type: string;
   name: string;
   prompt: string | null;
+  description: string | null;
   status: string;
   url: string | null;
   created_at: string | null;
@@ -162,22 +163,30 @@ export default function ProjectAssetsPage() {
         ) : (
           <ul className="grid gap-2">
             {assets.map((a) => (
-              <li
-                key={a.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{a.name}</div>
-                  {a.prompt && <div className="text-sm text-slate-500 truncate">{a.prompt}</div>}
+              <li key={a.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{a.name}</div>
+                    {a.prompt && <div className="text-sm text-slate-500 truncate">{a.prompt}</div>}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 border border-slate-200 rounded-full px-2.5 py-1">
+                      {a.type}
+                    </span>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1">
+                      {a.status}
+                    </span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 border border-slate-200 rounded-full px-2.5 py-1">
-                    {a.type}
-                  </span>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1">
-                    {a.status}
-                  </span>
-                </div>
+                {a.url ? (
+                  <a href={a.url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-sm text-indigo-600 hover:underline">
+                    View generated file →
+                  </a>
+                ) : a.description ? (
+                  <p className="mt-2 text-sm text-slate-700 whitespace-pre-wrap border-t border-slate-100 pt-2">
+                    {a.description}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>

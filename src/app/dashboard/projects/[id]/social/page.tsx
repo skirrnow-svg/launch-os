@@ -75,7 +75,10 @@ export default function ProjectSocialPage() {
         ← Project
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Social posts</h1>
-      <p className="text-slate-500 mt-1">Draft posts now; scheduling via Buffer comes in Phase 2.</p>
+      <p className="text-slate-500 mt-1">
+        Create a post, then click it to write the copy (with Claude), pick platforms and hashtags.
+        Scheduling via Buffer comes in Phase 2.
+      </p>
 
       <form onSubmit={create} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 grid gap-3">
         <div className="grid gap-1">
@@ -129,22 +132,27 @@ export default function ProjectSocialPage() {
         ) : (
           <ul className="grid gap-2">
             {posts.map((post) => (
-              <li key={post.id} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm whitespace-pre-wrap">{post.content}</p>
-                  <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1 shrink-0">
-                    {post.status}
-                  </span>
-                </div>
-                {post.platforms.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {post.platforms.map((p) => (
-                      <span key={p} className="text-xs text-slate-500 border border-slate-200 rounded-full px-2 py-0.5">
-                        {p}
-                      </span>
-                    ))}
+              <li key={post.id}>
+                <Link
+                  href={`/dashboard/projects/${id}/social/${post.id}`}
+                  className="block rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-indigo-400 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-sm whitespace-pre-wrap">{post.content}</p>
+                    <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1 shrink-0">
+                      {post.status}
+                    </span>
                   </div>
-                )}
+                  {post.platforms.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {post.platforms.map((p) => (
+                        <span key={p} className="text-xs text-slate-500 border border-slate-200 rounded-full px-2 py-0.5">
+                          {p}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </Link>
               </li>
             ))}
           </ul>
