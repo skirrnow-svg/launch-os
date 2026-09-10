@@ -2,12 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { generateText } from "@/lib/claude";
-import {
-  estimateCredits,
-  generate as higgsfieldGenerate,
-  type HiggsfieldKind,
-} from "@/lib/higgsfield";
-import { isMissingKey, isConfirmationRequired } from "@/lib/errors";
+import { isMissingKey } from "@/lib/errors";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ASSET_TYPES = ["image", "video", "email", "social"] as const;
@@ -68,7 +63,6 @@ export async function POST(request: Request, { params }: Ctx) {
     name?: unknown;
     prompt?: unknown;
     generate?: unknown;
-    confirmed?: unknown;
   };
   const type = (typeof body.type === "string" ? body.type : "") as AssetType;
   if (!ASSET_TYPES.includes(type)) {
@@ -82,7 +76,6 @@ export async function POST(request: Request, { params }: Ctx) {
   const prompt =
     typeof body.prompt === "string" && body.prompt.trim() ? body.prompt.trim() : null;
   const wantGenerate = body.generate === true;
-  const confirmed = body.confirmed === true;
 
   let asset = await prisma.assets.create({
     data: { project_id: project.id, created_by: user.id, type, name, prompt, status: "draft" },
@@ -116,55 +109,14 @@ export async function POST(request: Request, { params }: Ctx) {
       return NextResponse.json({ asset, generation: "ready" }, { status: 201 });
     }
 
-    // image / video: Claude refined the media prompt; media generation is gated.
-    const kind = type as HiggsfieldKind;
-    const credits = estimateCredits(kind);
+    // image / video: Claude refined the media prompt. The actual (paid) media
+    // generation happens via the confirm-gated endpoint
+    // POST /api/projects/[id]/assets/[assetId]/generate — never here.
     asset = await prisma.assets.update({
       where: { id: asset.id },
-      data: { prompt: brief, description: `Refined ${kind} prompt ready.`, status: "draft" },
+      data: { prompt: brief, description: `Refined ${type} prompt ready — use Generate to create media.`, status: "draft" },
     });
-
-    try {
-      const result = await higgsfieldGenerate({
-        orgId: org.id,
-        kind,
-        prompt: brief,
-        estimatedCredits: credits,
-        confirmed,
-      });
-      asset = await prisma.assets.update({
-        where: { id: asset.id },
-        data: { url: result.url, storage_key: result.storageKey, status: "ready" },
-      });
-      return NextResponse.json(
-        { asset, generation: "ready", creditsUsed: result.creditsUsed },
-        { status: 201 },
-      );
-    } catch (mediaErr) {
-      if (isConfirmationRequired(mediaErr)) {
-        return NextResponse.json(
-          {
-            asset,
-            generation: "confirmation-required",
-            estimatedCredits: mediaErr.estimatedCredits,
-            message: mediaErr.message,
-          },
-          { status: 201 },
-        );
-      }
-      if (isMissingKey(mediaErr)) {
-        return NextResponse.json(
-          { asset, generation: "not-configured", message: mediaErr.message },
-          { status: 201 },
-        );
-      }
-      // Higgsfield API not yet wired, or a provider error: prompt is still saved.
-      const message = mediaErr instanceof Error ? mediaErr.message : "Generation failed.";
-      return NextResponse.json(
-        { asset, generation: "prompt-ready", message },
-        { status: 201 },
-      );
-    }
+    return NextResponse.json({ asset, generation: "prompt-ready" }, { status: 201 });
   } catch (err) {
     if (isMissingKey(err)) {
       await prisma.assets.update({

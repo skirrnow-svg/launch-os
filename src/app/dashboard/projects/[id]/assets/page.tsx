@@ -60,6 +60,56 @@ export default function ProjectAssetsPage() {
     error: "Saved, but generation hit an error.",
   };
 
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  async function generateMedia(assetId: string) {
+    setBusyId(assetId);
+    setError("");
+    setNotice("");
+    try {
+      // 1) price the job (no spend)
+      const priceRes = await fetch(`/api/projects/${id}/assets/${assetId}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const price = await priceRes.json();
+      if (price.status === "not-configured") {
+        setNotice(price.message || "Higgsfield is not configured on the host.");
+        return;
+      }
+      if (price.status !== "confirmation-required") {
+        setNotice(price.message || "Could not price the generation.");
+        return;
+      }
+      // 2) explicit human confirmation of the credit cost
+      const ok = window.confirm(
+        `This will generate media via Higgsfield (${price.model}) and cost ~${price.estimatedCredits} credits.\n\nProceed?`,
+      );
+      if (!ok) {
+        setNotice("Generation cancelled — no credits spent.");
+        return;
+      }
+      // 3) confirmed spend
+      const genRes = await fetch(`/api/projects/${id}/assets/${assetId}/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmed: true }),
+      });
+      const gen = await genRes.json();
+      if (gen.status === "ready") {
+        setNotice(`Generated (${gen.model}, ${gen.creditsUsed} credits).`);
+        await load();
+      } else {
+        setNotice(gen.message || "Generation did not complete.");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Generation failed.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function generate(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -187,6 +237,15 @@ export default function ProjectAssetsPage() {
                     {a.description}
                   </p>
                 ) : null}
+                {(a.type === "image" || a.type === "video") && a.prompt && !a.url && (
+                  <button
+                    onClick={() => generateMedia(a.id)}
+                    disabled={busyId === a.id}
+                    className="mt-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                  >
+                    {busyId === a.id ? "Generating…" : "Generate media (shows cost first)"}
+                  </button>
+                )}
               </li>
             ))}
           </ul>

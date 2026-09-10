@@ -1,84 +1,165 @@
-import { getOrgKey } from "./settings";
-import { MissingKeyError, ConfirmationRequiredError } from "./errors";
+import { execFile } from "child_process";
+import { promisify } from "util";
+import { ConfirmationRequiredError } from "./errors";
+
+const exec = promisify(execFile);
 
 /**
- * Higgsfield AI — image / video generation client.
+ * Higgsfield AI generation — driven by the local `higgsfield` CLI.
  *
  * ⚠️ SPENDING GUARDRAILS (OWNER HARD RULE — do not remove, do not bypass)
  * ---------------------------------------------------------------------------
  * - Total monthly budget: 200 credits.
  * - NEVER run high-resolution video models (>25 credits) autonomously.
  * - ALWAYS output the estimated credit cost and WAIT for explicit human
- *   confirmation before calling ANY Higgsfield generation endpoint.
- * See docs/HIGGSFIELD_GUARDRAILS.md. Treat every generation like a spend
- * action: estimate → state the cost → get a yes → only then call.
+ *   confirmation before calling ANY generation. Every generate() call must be
+ *   `confirmed: true`; an unconfirmed call throws ConfirmationRequiredError
+ *   carrying the real cost, so the caller can show it and ask.
  * ---------------------------------------------------------------------------
  *
- * The key is resolved per-org via getOrgKey() (admin-stored, encrypted) then
- * the env fallback. NOTE: confirm whether the account's plan exposes an API at
- * all (the basic plan may be UI-only). The final HTTP call is intentionally
- * left unimplemented until that's verified; all guardrail plumbing is live.
+ * Requires the `higgsfield` CLI installed + authenticated on the host (machine
+ * auth, not a per-org key). NOTE: this runs where the CLI lives (local/dev, or
+ * a job-runner) — NOT on Cloudflare Pages. In production, move generate() into
+ * a worker with the CLI. Result media is the Higgsfield-hosted URL; mirroring
+ * to R2 is a follow-up (see storeToR2 TODO).
  */
 
 export type HiggsfieldKind = "image" | "video";
 
 export interface GenerateParams {
-  /** Org whose stored HIGGSFIELD_API_KEY should be used. */
   orgId: string;
   kind: HiggsfieldKind;
   prompt: string;
+  /** Explicit job_set_type; defaults per kind. */
   model?: string;
-  /** Caller-supplied estimate; the gate below enforces the guardrails. */
-  estimatedCredits?: number;
-  /** Must be explicitly true — set only after human confirmation. */
+  /** Must be true to actually spend — set only after human confirmation. */
   confirmed?: boolean;
 }
 
 /** Hard ceiling for anything that may run without a human in the loop. */
 export const AUTONOMOUS_CREDIT_CEILING = 25;
+const BIN = "higgsfield";
 
-/** Rough, conservative credit estimate used for the confirmation prompt. */
-export function estimateCredits(kind: HiggsfieldKind): number {
-  return kind === "video" ? 30 : 5;
+/** Default job_set_type per kind (quality-first defaults from the skill). */
+export function modelFor(kind: HiggsfieldKind, override?: string): string {
+  if (override) return override;
+  return kind === "video" ? "seedance_2_0" : "gpt_image_2";
 }
 
-/** True if the org (or env) has a Higgsfield key configured. */
-export async function higgsfieldConfigured(orgId: string): Promise<boolean> {
-  return (await getOrgKey(orgId, "HIGGSFIELD_API_KEY")) != null;
+async function run(args: string[]): Promise<string> {
+  const { stdout } = await exec(BIN, args, { maxBuffer: 16 * 1024 * 1024, windowsHide: true });
+  return stdout;
 }
 
-/**
- * Enforces the owner guardrail. Throws ConfirmationRequiredError unless the
- * call is confirmed (or is a cheap, non-video generation under the ceiling).
- */
-export function assertWithinGuardrails(p: GenerateParams): void {
-  const credits = p.estimatedCredits ?? estimateCredits(p.kind);
-  const needsConfirmation = p.kind === "video" || credits > AUTONOMOUS_CREDIT_CEILING;
-  if (needsConfirmation && !p.confirmed) {
-    throw new ConfirmationRequiredError(
-      `Higgsfield ${p.kind} generation is ~${credits} credits and needs explicit confirmation ` +
-        `(video and any >${AUTONOMOUS_CREDIT_CEILING}-credit job never run autonomously).`,
-      credits,
-    );
+/** Whether the CLI is installed + authenticated (no spend). */
+export async function higgsfieldConfigured(): Promise<boolean> {
+  try {
+    const out = await run(["account", "status"]);
+    return /credits/i.test(out);
+  } catch {
+    return false;
   }
+}
+
+/** Remaining credits on the selected workspace, or null if unreadable. */
+export async function getAccountCredits(): Promise<number | null> {
+  try {
+    const out = await run(["account", "status"]);
+    const m = out.match(/([\d.]+)\s*credits/i);
+    return m ? Number(m[1]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Real credit cost for a job (no generation). Throws if the CLI can't price it. */
+export async function estimateCost(
+  kind: HiggsfieldKind,
+  prompt: string,
+  model?: string,
+): Promise<number> {
+  const jst = modelFor(kind, model);
+  const out = await run(["generate", "cost", jst, "--prompt", prompt]);
+  const m = out.match(/([\d.]+)\s*credits?/i);
+  if (!m) throw new Error(`Could not read cost from CLI: ${out.slice(0, 120)}`);
+  return Number(m[1]);
 }
 
 export interface GenerateResult {
   url: string;
   storageKey: string;
   creditsUsed: number;
+  model: string;
 }
 
+/**
+ * Enforce the owner guardrail, then generate. An unconfirmed call NEVER spends —
+ * it prices the job and throws ConfirmationRequiredError with the real cost.
+ */
 export async function generate(params: GenerateParams): Promise<GenerateResult> {
-  // 1) key present?  2) within guardrails / confirmed?
-  const apiKey = await getOrgKey(params.orgId, "HIGGSFIELD_API_KEY");
-  if (!apiKey) throw new MissingKeyError("HIGGSFIELD_API_KEY");
-  assertWithinGuardrails(params);
+  const jst = modelFor(params.kind, params.model);
+  const cost = await estimateCost(params.kind, params.prompt, params.model);
 
-  // TODO(phase-2): POST to Higgsfield with apiKey, upload the result to R2, and
-  // return { url, storageKey, creditsUsed }. Blocked on confirming the plan's
-  // API surface — see the header note.
-  throw new Error(
-    "Higgsfield generation is not yet wired to the provider API (plan API unconfirmed).",
-  );
+  // Owner rule: confirm before ANY spend; video / >25-credit never autonomous.
+  if (!params.confirmed) {
+    const extra =
+      params.kind === "video" || cost > AUTONOMOUS_CREDIT_CEILING
+        ? ` (video / over ${AUTONOMOUS_CREDIT_CEILING} credits never runs without confirmation)`
+        : "";
+    throw new ConfirmationRequiredError(
+      `Higgsfield ${params.kind} (${jst}) will cost ~${cost} credits${extra}.`,
+      cost,
+    );
+  }
+
+  // Budget safety: don't spend beyond the remaining balance.
+  const remaining = await getAccountCredits();
+  if (remaining != null && cost > remaining) {
+    throw new Error(`Not enough credits: need ~${cost}, have ${remaining}.`);
+  }
+
+  const out = await run([
+    "generate",
+    "create",
+    jst,
+    "--prompt",
+    params.prompt,
+    "--wait",
+    "--json",
+  ]);
+  const url = extractMediaUrl(out);
+  if (!url) throw new Error("Generation finished but no media URL was returned.");
+
+  // TODO(follow-up): download `url` and mirror to Cloudflare R2 (storeToR2),
+  // then use the R2 URL for durability. For now the Higgsfield URL is stored.
+  return { url, storageKey: url, creditsUsed: cost, model: jst };
+}
+
+/** Deep-search the CLI's JSON for the first plausible media URL. */
+function extractMediaUrl(stdout: string): string | null {
+  let data: unknown;
+  try {
+    data = JSON.parse(stdout);
+  } catch {
+    const m = stdout.match(/https?:\/\/\S+\.(?:png|jpg|jpeg|webp|mp4|mov|webm|glb)/i);
+    return m ? m[0] : null;
+  }
+  const preferred = ["result_url", "output_url", "media_url", "video_url", "image_url", "url"];
+  let fallback: string | null = null;
+  const seen = new Set<unknown>();
+  const walk = (node: unknown): string | null => {
+    if (node == null || typeof node !== "object" || seen.has(node)) return null;
+    seen.add(node);
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (typeof v === "string" && /^https?:\/\//.test(v)) {
+        if (preferred.includes(k.toLowerCase())) return v;
+        if (!fallback && /\.(png|jpg|jpeg|webp|mp4|mov|webm|glb)/i.test(v)) fallback = v;
+      } else if (v && typeof v === "object") {
+        const found = walk(v);
+        if (found) return found;
+      }
+    }
+    return null;
+  };
+  return walk(data) ?? fallback;
 }
