@@ -1,16 +1,3 @@
-// Launch OS — Prisma schema
-//
-// The SOURCE OF TRUTH for the database is db/schema.sql (the full multi-tenant
-// PostgreSQL schema from New Instructions/02-DATABASE_SCHEMA.sql, 20+ tables).
-//
-// Workflow (Phase 0 → 1):
-//   1. Provision the Neon branch and apply db/schema.sql  (see README / neon link).
-//   2. Generate the Prisma models from the live DB:  npx prisma db pull
-//   3. Commit the generated models below, then:        npx prisma generate
-//
-// Keeping models out until `db pull` avoids a large, error-prone hand
-// translation and keeps Prisma in lock-step with the real schema.
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -20,4 +7,450 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// TODO(phase-1): run `prisma db pull` to populate models from db/schema.sql.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ab_tests {
+  id                  String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  campaign_id         String          @db.Uuid
+  variant_a_subject   String
+  variant_b_subject   String?
+  variant_c_subject   String?
+  variant_a_send_time DateTime?       @db.Timestamp(6)
+  variant_b_send_time DateTime?       @db.Timestamp(6)
+  variant_c_send_time DateTime?       @db.Timestamp(6)
+  split_percent       Int             @default(10)
+  test_duration_hours Int             @default(24)
+  winner_metric       String
+  winner_variant      String?
+  winner_probability  Decimal?        @db.Decimal(5, 2)
+  test_started_at     DateTime?       @db.Timestamp(6)
+  test_completed_at   DateTime?       @db.Timestamp(6)
+  created_at          DateTime?       @default(now()) @db.Timestamp(6)
+  email_campaigns     email_campaigns @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([campaign_id], map: "idx_ab_tests_campaign_id")
+}
+
+model api_usage {
+  id               String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id           String        @db.Uuid
+  endpoint         String
+  method           String
+  status_code      Int
+  response_time_ms Int?
+  tokens_used      Int?          @default(0)
+  timestamp        DateTime      @default(now()) @db.Timestamp(6)
+  organizations    organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([org_id], map: "idx_api_usage_org_id")
+  @@index([timestamp(sort: Desc)], map: "idx_api_usage_timestamp")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assets {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id       String    @db.Uuid
+  type             String
+  name             String
+  description      String?
+  prompt           String?
+  url              String?
+  storage_key      String?   @unique
+  file_size_bytes  Int?
+  duration_seconds Int?
+  dimensions       Json?
+  metadata         Json?     @default("{}")
+  status           String    @default("draft")
+  error_message    String?
+  created_by       String    @db.Uuid
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+  users            users     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects         projects  @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_assets_project_id")
+  @@index([status], map: "idx_assets_status")
+  @@index([type], map: "idx_assets_type")
+}
+
+model audit_logs {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id        String        @db.Uuid
+  user_id       String?       @db.Uuid
+  action        String
+  resource_type String
+  resource_id   String?       @db.Uuid
+  changes       Json?
+  ip_address    String?
+  user_agent    String?
+  created_at    DateTime      @default(now()) @db.Timestamp(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?        @relation(fields: [user_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_audit_logs_created_at")
+  @@index([org_id], map: "idx_audit_logs_org_id")
+  @@index([resource_type], map: "idx_audit_logs_resource_type")
+  @@index([user_id], map: "idx_audit_logs_user_id")
+}
+
+model contacts {
+  id                    String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id                String               @db.Uuid
+  email                 String               @db.Citext
+  first_name            String?
+  last_name             String?
+  phone                 String?
+  company               String?
+  tags                  String[]             @default([])
+  properties            Json?                @default("{}")
+  segment_ids           String[]             @default([]) @db.Uuid
+  email_bounced         Boolean?             @default(false)
+  email_unsubscribed    Boolean?             @default(false)
+  last_email_opened_at  DateTime?            @db.Timestamp(6)
+  last_email_clicked_at DateTime?            @db.Timestamp(6)
+  last_website_visit_at DateTime?            @db.Timestamp(6)
+  total_emails_opened   Int?                 @default(0)
+  total_emails_clicked  Int?                 @default(0)
+  estimated_deal_value  Decimal?             @default(0) @db.Decimal(12, 2)
+  source                String?              @default("manual")
+  created_at            DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at            DateTime?            @default(now()) @db.Timestamp(6)
+  organizations         organizations        @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  email_metrics         email_metrics[]
+  email_recipients      email_recipients[]
+  workflow_instances    workflow_instances[]
+
+  @@unique([org_id, email])
+  @@index([email], map: "idx_contacts_email")
+  @@index([org_id], map: "idx_contacts_org_id")
+  @@index([tags], map: "idx_contacts_tags", type: Gin)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_campaigns {
+  id                 String             @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id         String             @db.Uuid
+  segment_id         String?            @db.Uuid
+  name               String
+  subject            String
+  from_name          String
+  from_email         String
+  reply_to           String?
+  template_html      String
+  plain_text         String?
+  status             String             @default("draft")
+  schedule_time      DateTime?          @db.Timestamp(6)
+  sent_at            DateTime?          @db.Timestamp(6)
+  total_recipients   Int?               @default(0)
+  emails_sent        Int?               @default(0)
+  emails_opened      Int?               @default(0)
+  emails_clicked     Int?               @default(0)
+  emails_bounced     Int?               @default(0)
+  conversion_count   Int?               @default(0)
+  resend_campaign_id String?
+  created_by         String             @db.Uuid
+  created_at         DateTime?          @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?          @default(now()) @db.Timestamp(6)
+  ab_tests           ab_tests[]
+  users              users              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects           projects           @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  segments           segments?          @relation(fields: [segment_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  email_metrics      email_metrics[]
+  email_recipients   email_recipients[]
+
+  @@index([project_id], map: "idx_email_campaigns_project_id")
+  @@index([status], map: "idx_email_campaigns_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_metrics {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  campaign_id     String          @db.Uuid
+  contact_id      String          @db.Uuid
+  event           String
+  link_url        String?
+  user_agent      String?
+  ip_address      String?
+  timestamp       DateTime        @db.Timestamp(6)
+  created_at      DateTime?       @default(now()) @db.Timestamp(6)
+  email_campaigns email_campaigns @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contacts        contacts        @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([campaign_id], map: "idx_email_metrics_campaign_id")
+  @@index([contact_id], map: "idx_email_metrics_contact_id")
+  @@index([event], map: "idx_email_metrics_event")
+  @@index([timestamp(sort: Desc)], map: "idx_email_metrics_timestamp")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_recipients {
+  id              String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  campaign_id     String          @db.Uuid
+  contact_id      String          @db.Uuid
+  email_address   String          @db.Citext
+  status          String          @default("pending")
+  sent_at         DateTime?       @db.Timestamp(6)
+  opened_at       DateTime?       @db.Timestamp(6)
+  clicked_at      DateTime?       @db.Timestamp(6)
+  bounced_at      DateTime?       @db.Timestamp(6)
+  resend_email_id String?
+  open_count      Int?            @default(0)
+  click_count     Int?            @default(0)
+  email_campaigns email_campaigns @relation(fields: [campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  contacts        contacts        @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([campaign_id, contact_id])
+  @@index([campaign_id], map: "idx_email_recipients_campaign_id")
+  @@index([contact_id], map: "idx_email_recipients_contact_id")
+  @@index([status], map: "idx_email_recipients_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model integration_tokens {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id        String        @db.Uuid
+  service       String
+  access_token  String
+  refresh_token String?
+  expires_at    DateTime?     @db.Timestamp(6)
+  metadata      Json?         @default("{}")
+  created_at    DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at    DateTime?     @default(now()) @db.Timestamp(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([org_id, service])
+  @@index([org_id], map: "idx_integration_tokens_org_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model org_members {
+  id                                  String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id                              String        @db.Uuid
+  user_id                             String        @db.Uuid
+  role                                String        @default("member")
+  invited_by                          String?       @db.Uuid
+  invited_at                          DateTime?     @db.Timestamp(6)
+  accepted_at                         DateTime?     @db.Timestamp(6)
+  created_at                          DateTime?     @default(now()) @db.Timestamp(6)
+  updated_at                          DateTime?     @default(now()) @db.Timestamp(6)
+  users_org_members_invited_byTousers users?        @relation("org_members_invited_byTousers", fields: [invited_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations                       organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users_org_members_user_idTousers    users         @relation("org_members_user_idTousers", fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([org_id, user_id])
+  @@index([org_id], map: "idx_org_members_org_id")
+  @@index([user_id], map: "idx_org_members_user_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model organizations {
+  id                      String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name                    String
+  slug                    String               @unique
+  logo_url                String?
+  plan                    String               @default("free")
+  stripe_customer_id      String?
+  stripe_subscription_id  String?
+  billing_email           String?
+  billing_address         Json?
+  max_projects            Int?                 @default(10)
+  max_contacts            Int?                 @default(10000)
+  max_api_calls_per_month Int?                 @default(100000)
+  created_by              String               @db.Uuid
+  created_at              DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at              DateTime?            @default(now()) @db.Timestamp(6)
+  deleted_at              DateTime?            @db.Timestamp(6)
+  api_usage               api_usage[]
+  audit_logs              audit_logs[]
+  contacts                contacts[]
+  integration_tokens      integration_tokens[]
+  org_members             org_members[]
+  projects                projects[]
+
+  @@index([slug], map: "idx_organizations_slug")
+  @@index([stripe_customer_id], map: "idx_organizations_stripe_customer_id")
+}
+
+model project_cursorrules {
+  id               String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id       String    @unique @db.Uuid
+  cursorrules_text String
+  brand_config     Json      @default("{}")
+  version          Int?      @default(1)
+  created_at       DateTime? @default(now()) @db.Timestamp(6)
+  updated_at       DateTime? @default(now()) @db.Timestamp(6)
+  projects         projects  @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_project_cursorrules_project_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model projects {
+  id                  String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id              String               @db.Uuid
+  name                String
+  slug                String
+  description         String?
+  url                 String?
+  launch_date         DateTime?            @db.Timestamp(6)
+  template_type       String               @default("custom")
+  status              String               @default("draft")
+  settings            Json?                @default("{}")
+  created_by          String               @db.Uuid
+  created_at          DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at          DateTime?            @default(now()) @db.Timestamp(6)
+  deleted_at          DateTime?            @db.Timestamp(6)
+  assets              assets[]
+  email_campaigns     email_campaigns[]
+  project_cursorrules project_cursorrules?
+  users               users                @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  organizations       organizations        @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  segments            segments[]
+  social_posts        social_posts[]
+  workflows           workflows[]
+
+  @@unique([org_id, slug])
+  @@index([created_at(sort: Desc)], map: "idx_projects_created_at")
+  @@index([org_id], map: "idx_projects_org_id")
+  @@index([status], map: "idx_projects_status")
+}
+
+model segments {
+  id              String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id      String            @db.Uuid
+  name            String
+  description     String?
+  rules           Json
+  contact_count   Int?              @default(0)
+  created_by      String            @db.Uuid
+  created_at      DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?         @default(now()) @db.Timestamp(6)
+  email_campaigns email_campaigns[]
+  users           users             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects        projects          @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_segments_project_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model social_metrics {
+  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  post_id      String       @db.Uuid
+  platform     String
+  event        String
+  count        Int?         @default(1)
+  timestamp    DateTime     @default(now()) @db.Timestamp(6)
+  created_at   DateTime?    @default(now()) @db.Timestamp(6)
+  social_posts social_posts @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([event], map: "idx_social_metrics_event")
+  @@index([platform], map: "idx_social_metrics_platform")
+  @@index([post_id], map: "idx_social_metrics_post_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model social_posts {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id      String           @db.Uuid
+  content         String
+  platforms       String[]
+  schedule_time   DateTime?        @db.Timestamp(6)
+  status          String           @default("draft")
+  image_url       String?
+  video_url       String?
+  link_url        String?
+  buffer_post_ids Json?            @default("{}")
+  hashtags        String[]         @default([])
+  created_by      String           @db.Uuid
+  created_at      DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at      DateTime?        @default(now()) @db.Timestamp(6)
+  social_metrics  social_metrics[]
+  users           users            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects        projects         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_social_posts_project_id")
+  @@index([status], map: "idx_social_posts_status")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                                        String            @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  email                                     String            @unique @db.Citext
+  name                                      String?
+  avatar_url                                String?
+  auth_provider                             String            @default("clerk")
+  auth_id                                   String            @unique
+  auth_metadata                             Json?
+  email_verified                            Boolean?          @default(false)
+  created_at                                DateTime?         @default(now()) @db.Timestamp(6)
+  updated_at                                DateTime?         @default(now()) @db.Timestamp(6)
+  deleted_at                                DateTime?         @db.Timestamp(6)
+  assets                                    assets[]
+  audit_logs                                audit_logs[]
+  email_campaigns                           email_campaigns[]
+  org_members_org_members_invited_byTousers org_members[]     @relation("org_members_invited_byTousers")
+  org_members_org_members_user_idTousers    org_members[]     @relation("org_members_user_idTousers")
+  projects                                  projects[]
+  segments                                  segments[]
+  social_posts                              social_posts[]
+  workflows                                 workflows[]
+
+  @@index([auth_id], map: "idx_users_auth_id")
+  @@index([email], map: "idx_users_email")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model webhook_logs {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  source        String
+  event         String
+  payload       Json
+  processed     Boolean?  @default(false)
+  error_message String?
+  retry_count   Int?      @default(0)
+  next_retry_at DateTime? @db.Timestamp(6)
+  created_at    DateTime? @default(now()) @db.Timestamp(6)
+
+  @@index([created_at(sort: Desc)], map: "idx_webhook_logs_created_at")
+  @@index([source], map: "idx_webhook_logs_source")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model workflow_instances {
+  id                  String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  workflow_id         String    @db.Uuid
+  contact_id          String    @db.Uuid
+  current_step_id     String
+  current_step_number Int       @default(0)
+  status              String    @default("active")
+  step_data           Json?     @default("{}")
+  started_at          DateTime  @default(now()) @db.Timestamp(6)
+  completed_at        DateTime? @db.Timestamp(6)
+  updated_at          DateTime? @default(now()) @db.Timestamp(6)
+  contacts            contacts  @relation(fields: [contact_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  workflows           workflows @relation(fields: [workflow_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([contact_id], map: "idx_workflow_instances_contact_id")
+  @@index([status], map: "idx_workflow_instances_status")
+  @@index([workflow_id], map: "idx_workflow_instances_workflow_id")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model workflows {
+  id                 String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id         String               @db.Uuid
+  name               String
+  description        String?
+  status             String               @default("draft")
+  trigger_type       String
+  trigger_config     Json?
+  steps              Json
+  created_by         String               @db.Uuid
+  created_at         DateTime?            @default(now()) @db.Timestamp(6)
+  updated_at         DateTime?            @default(now()) @db.Timestamp(6)
+  workflow_instances workflow_instances[]
+  users              users                @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects           projects             @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_workflows_project_id")
+  @@index([status], map: "idx_workflows_status")
+}
