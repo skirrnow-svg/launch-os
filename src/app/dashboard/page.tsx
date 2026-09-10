@@ -1,32 +1,32 @@
-/**
- * Dashboard (Phase 0 stub).
- * TODO(phase-1): gate behind Clerk auth (auth() / currentUser()), resolve the
- * active organization, and render real project/launch data from the database.
- */
-export default function DashboardPage() {
-  return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <h1 className="mb-2 text-2xl font-bold tracking-tight text-slate-900">
-        Dashboard
-      </h1>
-      <p className="mb-8 text-slate-600">
-        Your launches, assets, and campaign metrics will appear here.
-      </p>
+import Link from "next/link";
+import { getContext } from "@/lib/auth";
+import { prisma } from "@/lib/db";
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        {["Projects", "Assets", "Campaigns"].map((label) => (
-          <div
-            key={label}
-            className="rounded border border-slate-200 bg-white p-5"
-          >
-            <p className="text-sm font-medium text-slate-500">{label}</p>
-            <p className="mt-1 text-3xl font-semibold text-slate-900">—</p>
-            <p className="mt-1 text-xs text-slate-400">
-              TODO(phase-1): live data
-            </p>
-          </div>
-        ))}
+export default async function DashboardHome() {
+  const { user, org } = await getContext();
+  const projectCount = await prisma.projects.count({
+    where: { org_id: org.id, deleted_at: null },
+  });
+  const firstName = (user.name ?? user.email).split(/[@ ]/)[0];
+
+  return (
+    <div className="max-w-3xl">
+      <h1 className="text-2xl font-extrabold tracking-tight">Welcome back, {firstName}</h1>
+      <p className="text-slate-500 mt-1">Workspace: {org.name}</p>
+
+      <div className="mt-8 grid grid-cols-2 gap-4 max-w-md">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-3xl font-extrabold tabular-nums">{projectCount}</div>
+          <div className="text-sm text-slate-500 mt-1">Projects</div>
+        </div>
+        <Link
+          href="/dashboard/projects"
+          className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col justify-center hover:border-indigo-400 transition-colors"
+        >
+          <div className="font-semibold text-indigo-600">Manage projects →</div>
+          <div className="text-sm text-slate-500 mt-1">Create and organize launches</div>
+        </Link>
       </div>
-    </main>
+    </div>
   );
 }

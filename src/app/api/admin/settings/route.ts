@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { getOrgId, requireUser } from "@/lib/auth";
+import { getContext } from "@/lib/auth";
 
 /**
  * Admin integration settings API.
  *
- * GET   → returns the current keys MASKED (last 4 chars only), never in full.
+ * GET   → returns the managed keys MASKED (last 4 chars only), never in full.
  * PATCH → updates one or more integration keys for the caller's org.
  *
- * Keys are per-org and MUST be stored ENCRYPTED at rest (never plaintext, never
- * in a NEXT_PUBLIC_* var). TODO(phase-1): persist to the `integration_settings`
- * table (see db/schema.sql) via prisma, encrypting with a server-side key; and
- * gate to org admins only (Clerk role check) rather than any authed user.
+ * Keys are per-org and MUST be stored ENCRYPTED at rest. TODO(phase-1): persist
+ * to the `integration_tokens` table (see prisma schema) encrypted with a
+ * server-side key, and gate to org admins only (role check) rather than any
+ * authenticated user.
  */
 
 const MANAGED_KEYS = ["CLAUDE_API_KEY", "HIGGSFIELD_API_KEY"] as const;
@@ -22,23 +22,17 @@ function mask(value: string): string {
 }
 
 export async function GET() {
-  await requireUser();
-  const orgId = await getOrgId();
-  if (!orgId) return NextResponse.json({ error: "No active organization." }, { status: 400 });
-
-  // TODO(phase-1): read row from integration_settings WHERE org_id = orgId.
+  const { org } = await getContext();
+  // TODO(phase-1): read stored values from integration_tokens WHERE org_id = org.id.
   const stored: Partial<Record<ManagedKey, string>> = {};
   const masked = Object.fromEntries(
     MANAGED_KEYS.map((k) => [k, stored[k] ? mask(stored[k] as string) : null]),
   );
-  return NextResponse.json({ settings: masked });
+  return NextResponse.json({ org: org.name, settings: masked });
 }
 
 export async function PATCH(request: Request) {
-  await requireUser();
-  const orgId = await getOrgId();
-  if (!orgId) return NextResponse.json({ error: "No active organization." }, { status: 400 });
-
+  const { org } = await getContext();
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const updates: Partial<Record<ManagedKey, string>> = {};
   for (const key of MANAGED_KEYS) {
@@ -48,7 +42,6 @@ export async function PATCH(request: Request) {
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No valid keys to update." }, { status: 400 });
   }
-
-  // TODO(phase-1): encrypt each value and upsert into integration_settings for orgId.
-  return NextResponse.json({ updated: Object.keys(updates) });
+  // TODO(phase-1): encrypt each value and upsert into integration_tokens for org.id.
+  return NextResponse.json({ org: org.name, updated: Object.keys(updates) });
 }
