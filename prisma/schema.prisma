@@ -259,6 +259,7 @@ model organizations {
   created_at              DateTime?            @default(now()) @db.Timestamp(6)
   updated_at              DateTime?            @default(now()) @db.Timestamp(6)
   deleted_at              DateTime?            @db.Timestamp(6)
+  clerk_org_id            String?              @unique
   api_usage               api_usage[]
   audit_logs              audit_logs[]
   contacts                contacts[]

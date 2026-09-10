@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserButton } from "@clerk/nextjs";
+import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { getContext } from "@/lib/auth";
 
 /**
@@ -21,7 +21,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <aside className="border-r border-slate-200 bg-white flex flex-col">
         <div className="px-5 py-5 border-b border-slate-200">
           <div className="font-extrabold tracking-tight text-lg">Launch OS</div>
-          <div className="text-xs text-slate-500 mt-0.5 truncate">{org.name}</div>
+          <div className="mt-2">
+            <OrganizationSwitcher
+              hidePersonal={false}
+              afterCreateOrganizationUrl="/dashboard"
+              afterSelectOrganizationUrl="/dashboard"
+              afterSelectPersonalUrl="/dashboard"
+            />
+          </div>
+          <div className="text-xs text-slate-400 mt-2 truncate">Active: {org.name}</div>
         </div>
         <nav className="flex-1 p-3 flex flex-col gap-1">
           {nav.map((n) => (

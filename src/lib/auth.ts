@@ -62,11 +62,37 @@ export async function getOrCreateUser() {
   });
 }
 
-/** The current user together with their personal organization (created if missing). */
+/**
+ * The current user together with their active organization.
+ * - If a Clerk Organization is active, it is mapped to (or created as) a DB
+ *   `organizations` row keyed by clerk_org_id.
+ * - Otherwise a personal org (no clerk_org_id) is used/created, so users work
+ *   before enabling Clerk Organizations.
+ * TODO(phase-1+): sync org_members membership + roles from Clerk.
+ */
 export async function getContext() {
   const user = await getOrCreateUser();
+  const { orgId, orgSlug } = await auth();
+
+  if (orgId) {
+    let org = await prisma.organizations.findUnique({ where: { clerk_org_id: orgId } });
+    if (!org) {
+      const base = orgSlug || `org-${orgId.slice(-8)}`;
+      const name = orgSlug ? orgSlug.replace(/[-_]+/g, " ") : "Organization";
+      org = await prisma.organizations.create({
+        data: {
+          clerk_org_id: orgId,
+          name,
+          slug: `${slugify(base)}-${orgId.slice(-6)}`,
+          created_by: user.id,
+        },
+      });
+    }
+    return { user, org };
+  }
+
   let org = await prisma.organizations.findFirst({
-    where: { created_by: user.id, deleted_at: null },
+    where: { created_by: user.id, clerk_org_id: null, deleted_at: null },
     orderBy: { created_at: "asc" },
   });
   if (!org) {
