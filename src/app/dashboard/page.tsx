@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
@@ -7,6 +9,10 @@ export default async function DashboardHome() {
   const projectCount = await prisma.projects.count({
     where: { org_id: org.id, deleted_at: null },
   });
+  // First run: no projects and the user hasn't dismissed onboarding → run the wizard.
+  if (projectCount === 0 && cookies().get("lo_onboarded")?.value !== "1") {
+    redirect("/dashboard/onboarding");
+  }
   const firstName = (user.name ?? user.email).split(/[@ ]/)[0];
 
   return (
