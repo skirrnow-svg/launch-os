@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { generateText } from "@/lib/claude";
+import {
+  estimateCredits,
+  generate as higgsfieldGenerate,
+  type HiggsfieldKind,
+} from "@/lib/higgsfield";
+import { isMissingKey, isConfirmationRequired } from "@/lib/errors";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const ASSET_TYPES = ["image", "video", "email", "social"];
+const ASSET_TYPES = ["image", "video", "email", "social"] as const;
+type AssetType = (typeof ASSET_TYPES)[number];
 
 type Ctx = { params: { id: string } };
 
@@ -24,16 +32,31 @@ export async function GET(_request: Request, { params }: Ctx) {
   return NextResponse.json({ assets });
 }
 
+/** Ask Claude to turn a rough idea into a production brief / copy. */
+function briefSystemPrompt(type: AssetType): string {
+  switch (type) {
+    case "email":
+      return "You are a senior launch copywriter. Write a concise marketing email (subject line + short body) for the described launch. Plain text.";
+    case "social":
+      return "You are a senior social media copywriter. Write 3 short, punchy post variants for the described launch. Plain text, one per line.";
+    case "image":
+      return "You are an art director. Turn the idea into ONE vivid image-generation prompt (subject, style, lighting, composition). Return only the prompt.";
+    case "video":
+      return "You are a video director. Turn the idea into ONE concise video-generation prompt (scene, motion, mood, duration). Return only the prompt.";
+  }
+}
+
 /**
- * POST /api/projects/[id]/assets — request a new AI asset.
- * Body: { type: image|video|email|social, name?, prompt? }
+ * POST /api/projects/[id]/assets — create an asset request, optionally generating.
+ * Body: { type, name?, prompt?, generate?: boolean, confirmed?: boolean }
  *
- * TODO(phase-2): once CLAUDE_API_KEY + HIGGSFIELD_API_KEY (and the higgsfield
- * CLI) are configured, this should: refine the prompt via Claude, generate the
- * media via Higgsfield (RESPECTING the credit guardrails — estimate cost and
- * confirm before any generation, never autonomous >25-credit hi-res video),
- * upload the result to R2, and set url + status='ready'. For now it records the
- * request as a 'draft' asset so the workflow and history are real.
+ * Always records the request as a draft asset (real workflow + history). When
+ * `generate` is set and keys are configured:
+ *  - email/social: Claude writes the copy → stored on the asset, status 'ready'.
+ *  - image/video : Claude refines the generation prompt; media generation is
+ *    gated by the Higgsfield credit guardrail (estimate + explicit confirm),
+ *    so it only runs when `confirmed` is passed and a key exists.
+ * Missing keys / needed confirmation are reported without failing the request.
  */
 export async function POST(request: Request, { params }: Ctx) {
   const { user, org } = await getContext();
@@ -44,8 +67,10 @@ export async function POST(request: Request, { params }: Ctx) {
     type?: unknown;
     name?: unknown;
     prompt?: unknown;
+    generate?: unknown;
+    confirmed?: unknown;
   };
-  const type = typeof body.type === "string" ? body.type : "";
+  const type = (typeof body.type === "string" ? body.type : "") as AssetType;
   if (!ASSET_TYPES.includes(type)) {
     return NextResponse.json(
       { error: `type must be one of: ${ASSET_TYPES.join(", ")}.` },
@@ -56,9 +81,106 @@ export async function POST(request: Request, { params }: Ctx) {
     typeof body.name === "string" && body.name.trim() ? body.name.trim() : `Untitled ${type}`;
   const prompt =
     typeof body.prompt === "string" && body.prompt.trim() ? body.prompt.trim() : null;
+  const wantGenerate = body.generate === true;
+  const confirmed = body.confirmed === true;
 
-  const asset = await prisma.assets.create({
+  let asset = await prisma.assets.create({
     data: { project_id: project.id, created_by: user.id, type, name, prompt, status: "draft" },
   });
-  return NextResponse.json({ asset, generation: "pending-integration" }, { status: 201 });
+
+  if (!wantGenerate) {
+    return NextResponse.json({ asset, generation: "draft" }, { status: 201 });
+  }
+  if (!prompt) {
+    return NextResponse.json(
+      { asset, generation: "needs-prompt", message: "Add a prompt to generate." },
+      { status: 201 },
+    );
+  }
+
+  // --- Generation path ------------------------------------------------------
+  try {
+    const brief = await generateText({
+      orgId: org.id,
+      system: briefSystemPrompt(type),
+      prompt,
+      maxTokens: 1024,
+    });
+
+    if (type === "email" || type === "social") {
+      // Text deliverable is complete once Claude returns.
+      asset = await prisma.assets.update({
+        where: { id: asset.id },
+        data: { description: brief, status: "ready", error_message: null },
+      });
+      return NextResponse.json({ asset, generation: "ready" }, { status: 201 });
+    }
+
+    // image / video: Claude refined the media prompt; media generation is gated.
+    const kind = type as HiggsfieldKind;
+    const credits = estimateCredits(kind);
+    asset = await prisma.assets.update({
+      where: { id: asset.id },
+      data: { prompt: brief, description: `Refined ${kind} prompt ready.`, status: "draft" },
+    });
+
+    try {
+      const result = await higgsfieldGenerate({
+        orgId: org.id,
+        kind,
+        prompt: brief,
+        estimatedCredits: credits,
+        confirmed,
+      });
+      asset = await prisma.assets.update({
+        where: { id: asset.id },
+        data: { url: result.url, storage_key: result.storageKey, status: "ready" },
+      });
+      return NextResponse.json(
+        { asset, generation: "ready", creditsUsed: result.creditsUsed },
+        { status: 201 },
+      );
+    } catch (mediaErr) {
+      if (isConfirmationRequired(mediaErr)) {
+        return NextResponse.json(
+          {
+            asset,
+            generation: "confirmation-required",
+            estimatedCredits: mediaErr.estimatedCredits,
+            message: mediaErr.message,
+          },
+          { status: 201 },
+        );
+      }
+      if (isMissingKey(mediaErr)) {
+        return NextResponse.json(
+          { asset, generation: "not-configured", message: mediaErr.message },
+          { status: 201 },
+        );
+      }
+      // Higgsfield API not yet wired, or a provider error: prompt is still saved.
+      const message = mediaErr instanceof Error ? mediaErr.message : "Generation failed.";
+      return NextResponse.json(
+        { asset, generation: "prompt-ready", message },
+        { status: 201 },
+      );
+    }
+  } catch (err) {
+    if (isMissingKey(err)) {
+      await prisma.assets.update({
+        where: { id: asset.id },
+        data: { error_message: err.message },
+      });
+      return NextResponse.json(
+        { asset, generation: "not-configured", message: err.message },
+        { status: 201 },
+      );
+    }
+    const message = err instanceof Error ? err.message : "Generation failed.";
+    await prisma.assets.update({
+      where: { id: asset.id },
+      data: { status: "error", error_message: message },
+    });
+    return NextResponse.json({ asset, generation: "error", message }, { status: 201 });
+  }
 }

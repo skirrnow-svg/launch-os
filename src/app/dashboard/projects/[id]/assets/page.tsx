@@ -24,9 +24,11 @@ export default function ProjectAssetsPage() {
   const [type, setType] = useState("image");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [withAI, setWithAI] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   async function load() {
     setLoading(true);
@@ -47,18 +49,37 @@ export default function ProjectAssetsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const NOTICES: Record<string, string> = {
+    ready: "Generated. The result is saved on the asset.",
+    "prompt-ready": "Prompt refined and saved. Media generation isn't wired to the provider yet.",
+    "confirmation-required": "Refined prompt saved. Media needs cost confirmation before it runs.",
+    "not-configured": "Saved as draft — add the API key in Admin to generate.",
+    "needs-prompt": "Saved as draft — add a prompt to generate.",
+    draft: "Saved as a draft.",
+    error: "Saved, but generation hit an error.",
+  };
+
   async function generate(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setError("");
+    setNotice("");
     try {
       const res = await fetch(`/api/projects/${id}/assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, name, prompt }),
+        body: JSON.stringify({ type, name, prompt, generate: withAI }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create asset.");
+      const base = NOTICES[data.generation as string] ?? "Saved.";
+      setNotice(
+        data.generation === "confirmation-required" && data.estimatedCredits
+          ? `${base} (~${data.estimatedCredits} credits)`
+          : data.message
+            ? `${base} ${data.message}`
+            : base,
+      );
       setName("");
       setPrompt("");
       await load();
@@ -76,9 +97,9 @@ export default function ProjectAssetsPage() {
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Assets</h1>
       <p className="text-slate-500 mt-1">
-        AI-generated marketing assets for this launch.{" "}
-        <span className="text-amber-600">Generation is stubbed until API keys are configured</span> —
-        requests are saved as drafts.
+        AI-generated marketing assets for this launch. Email &amp; social copy generate via Claude;
+        image/video prompts are refined and gated by the Higgsfield credit guardrail. Add keys in{" "}
+        <Link href="/dashboard/admin" className="text-indigo-600 hover:underline">Admin</Link>.
       </p>
 
       <form onSubmit={generate} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 grid gap-3">
@@ -118,13 +139,18 @@ export default function ProjectAssetsPage() {
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm resize-y"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-600">
+          <input type="checkbox" checked={withAI} onChange={(e) => setWithAI(e.target.checked)} />
+          Generate with AI (uses this org&apos;s API keys)
+        </label>
         <button
           type="submit"
           disabled={saving}
           className="justify-self-start rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
         >
-          {saving ? "Saving…" : "Request asset"}
+          {saving ? (withAI ? "Generating…" : "Saving…") : withAI ? "Generate asset" : "Save draft"}
         </button>
+        {notice && <p className="text-sm text-emerald-700" role="status">{notice}</p>}
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       </form>
 
