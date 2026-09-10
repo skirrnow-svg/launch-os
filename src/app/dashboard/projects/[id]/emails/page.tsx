@@ -70,7 +70,10 @@ export default function ProjectEmailsPage() {
         ← Project
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Email campaigns</h1>
-      <p className="text-slate-500 mt-1">Draft campaigns now; sending via Resend comes in Phase 3.</p>
+      <p className="text-slate-500 mt-1">
+        Create a campaign, then click it to write the copy (with Claude) and edit the body.
+        Sending via Resend comes in Phase 3.
+      </p>
 
       <form onSubmit={create} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 grid gap-3">
         <div className="grid gap-1">
@@ -113,17 +116,19 @@ export default function ProjectEmailsPage() {
         ) : (
           <ul className="grid gap-2">
             {campaigns.map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <div className="font-semibold truncate">{c.name}</div>
-                  <div className="text-sm text-slate-500 truncate">{c.subject}</div>
-                </div>
-                <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1 shrink-0">
-                  {c.status}
-                </span>
+              <li key={c.id}>
+                <Link
+                  href={`/dashboard/projects/${id}/emails/${c.id}`}
+                  className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 hover:border-indigo-400 transition-colors"
+                >
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{c.name}</div>
+                    <div className="text-sm text-slate-500 truncate">{c.subject}</div>
+                  </div>
+                  <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600 border border-indigo-200 rounded-full px-2.5 py-1 shrink-0">
+                    {c.status}
+                  </span>
+                </Link>
               </li>
             ))}
           </ul>
