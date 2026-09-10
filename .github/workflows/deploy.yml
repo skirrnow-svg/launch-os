@@ -1,0 +1,21 @@
+# Deploy to Cloudflare Pages. TODO(phase-0): wire real secrets/project.
+# See New Instructions/05-DEPLOYMENT_CLOUDFLARE.md. Placeholder only — does not
+# deploy until CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are configured.
+name: Deploy
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # TODO(phase-0): cloudflare/pages-action with project-name + API token secret.
+      - run: echo "TODO(phase-0): configure Cloudflare Pages deploy"

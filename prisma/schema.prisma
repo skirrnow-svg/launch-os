@@ -1,0 +1,23 @@
+// Launch OS — Prisma schema
+//
+// The SOURCE OF TRUTH for the database is db/schema.sql (the full multi-tenant
+// PostgreSQL schema from New Instructions/02-DATABASE_SCHEMA.sql, 20+ tables).
+//
+// Workflow (Phase 0 → 1):
+//   1. Provision the Neon branch and apply db/schema.sql  (see README / neon link).
+//   2. Generate the Prisma models from the live DB:  npx prisma db pull
+//   3. Commit the generated models below, then:        npx prisma generate
+//
+// Keeping models out until `db pull` avoids a large, error-prone hand
+// translation and keeps Prisma in lock-step with the real schema.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// TODO(phase-1): run `prisma db pull` to populate models from db/schema.sql.
