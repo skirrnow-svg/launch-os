@@ -83,12 +83,22 @@ export default function ProjectDetailPage() {
       <Link href="/dashboard/projects" className="text-sm text-indigo-600 hover:underline">← Projects</Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">{project.name}</h1>
       <p className="text-slate-400 text-xs mt-1 font-mono">{project.slug}</p>
-      <Link
-        href={`/dashboard/projects/${id}/assets`}
-        className="inline-block mt-3 text-sm font-semibold text-indigo-600 hover:underline"
-      >
-        Assets →
-      </Link>
+      <nav className="mt-3 flex flex-wrap gap-2">
+        {[
+          { slug: "assets", label: "Assets" },
+          { slug: "emails", label: "Emails" },
+          { slug: "social", label: "Social" },
+          { slug: "metrics", label: "Metrics" },
+        ].map((s) => (
+          <Link
+            key={s.slug}
+            href={`/dashboard/projects/${id}/${s.slug}`}
+            className="rounded-full border border-slate-200 px-3 py-1 text-sm font-semibold text-indigo-600 hover:border-indigo-400"
+          >
+            {s.label}
+          </Link>
+        ))}
+      </nav>
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 grid gap-4">
         <div className="grid gap-1">
