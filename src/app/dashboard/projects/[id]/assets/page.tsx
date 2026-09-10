@@ -148,9 +148,9 @@ export default function ProjectAssetsPage() {
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Assets</h1>
       <p className="text-slate-500 mt-1">
-        AI-generated marketing assets for this launch. Email &amp; social copy generate via Claude;
-        image/video prompts are refined and gated by the Higgsfield credit guardrail. Add keys in{" "}
-        <Link href="/dashboard/admin" className="text-indigo-600 hover:underline">Admin</Link>.
+        AI-generated marketing assets for this launch. Copy is written by Claude and media by
+        Higgsfield — both via your Claude Code + Higgsfield subscriptions, no API keys needed.
+        Image/video generation always shows its credit cost and asks before spending.
       </p>
 
       <form onSubmit={generate} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 grid gap-3">

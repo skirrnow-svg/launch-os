@@ -79,7 +79,7 @@ export default function CampaignDetailPage() {
     try {
       const data = await patch({ generate: true, brief });
       if (data.generation === "not-configured") {
-        setNotice("Add a CLAUDE_API_KEY in Admin to generate copy.");
+        setNotice("Claude CLI isn't reachable on the host — can't generate copy right now.");
       } else if (data.generation === "error") {
         setNotice("Generation failed — try again.");
       } else {

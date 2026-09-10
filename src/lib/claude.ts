@@ -1,64 +1,87 @@
-import { getOrgKey } from "./settings";
+import { spawn } from "child_process";
 import { MissingKeyError } from "./errors";
 
 /**
- * Claude API client — AI orchestration for asset briefs, copy, and the image/
- * video prompts that feed Higgsfield.
+ * Claude text generation — driven by the local `claude` CLI in print mode
+ * (`claude -p`), which uses the host's Claude Code SUBSCRIPTION auth. No
+ * Anthropic API key and no per-token API billing: copy/briefs/prompts are
+ * generated the same way media is (the `higgsfield` CLI). Mirrors the
+ * generate-via-CLI pattern.
  *
- * The key is resolved per-org via getOrgKey() (admin-stored, encrypted), then
- * the process env fallback. Calls the Anthropic Messages API directly over
- * fetch (no SDK dependency). Set CLAUDE_MODEL to pin the model id.
+ * Requires the `claude` CLI installed + logged in on the host. Runs where the
+ * CLI lives (local/dev or a job-runner) — NOT on Cloudflare Pages; move to a
+ * worker for production. Set CLAUDE_CODE_MODEL to pin the model (default sonnet).
  */
 
-const ANTHROPIC_URL = "https://api.anthropic.com/v1/messages";
-const ANTHROPIC_VERSION = "2023-06-01";
-// Exact ids rotate — pin via CLAUDE_MODEL in the environment for production.
-const DEFAULT_MODEL = process.env.CLAUDE_MODEL || "claude-sonnet-4-5";
+const BIN = "claude";
+const DEFAULT_MODEL = process.env.CLAUDE_CODE_MODEL || "sonnet";
+const TIMEOUT_MS = 120_000;
 
 export interface GenerateTextParams {
-  /** Org whose stored CLAUDE_API_KEY should be used. */
-  orgId: string;
+  /** Kept for call-site compatibility; not needed by the CLI path. */
+  orgId?: string;
   system?: string;
   prompt: string;
   maxTokens?: number;
   model?: string;
 }
 
-/** True if the org (or env) has a Claude key configured. */
-export async function claudeConfigured(orgId: string): Promise<boolean> {
-  return (await getOrgKey(orgId, "CLAUDE_API_KEY")) != null;
+/** True if the `claude` CLI is available on the host. */
+export async function claudeConfigured(): Promise<boolean> {
+  try {
+    await runClaude("Reply with: OK", { model: DEFAULT_MODEL, timeout: 30_000 });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function generateText(params: GenerateTextParams): Promise<string> {
-  const apiKey = await getOrgKey(params.orgId, "CLAUDE_API_KEY");
-  if (!apiKey) throw new MissingKeyError("CLAUDE_API_KEY");
+  const full = params.system ? `${params.system}\n\n${params.prompt}` : params.prompt;
+  return runClaude(full, { model: params.model || DEFAULT_MODEL });
+}
 
-  const res = await fetch(ANTHROPIC_URL, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": ANTHROPIC_VERSION,
-    },
-    body: JSON.stringify({
-      model: params.model || DEFAULT_MODEL,
-      max_tokens: params.maxTokens ?? 1024,
-      ...(params.system ? { system: params.system } : {}),
-      messages: [{ role: "user", content: params.prompt }],
-    }),
+/** Pipe the prompt to `claude -p` over stdin (avoids arg-quoting issues). */
+function runClaude(
+  prompt: string,
+  opts: { model: string; timeout?: number },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const args = ["-p", "--max-turns", "1", "--model", opts.model];
+    // shell:true so the npm .cmd shim resolves on Windows.
+    const child = spawn(BIN, args, { shell: true, windowsHide: true });
+
+    let stdout = "";
+    let stderr = "";
+    let done = false;
+    const finish = (fn: () => void) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      fn();
+    };
+
+    const timer = setTimeout(() => {
+      child.kill();
+      finish(() => reject(new Error("Claude CLI timed out.")));
+    }, opts.timeout ?? TIMEOUT_MS);
+
+    child.on("error", (e) => {
+      // CLI missing / not runnable → treated as "not configured" by callers.
+      finish(() => reject(new MissingKeyError("CLAUDE_CODE_CLI")));
+      void e;
+    });
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("close", (code) => {
+      finish(() => {
+        const text = stdout.trim();
+        if (code === 0 && text) resolve(text);
+        else reject(new Error(stderr.trim() || `Claude CLI exited ${code}.`));
+      });
+    });
+
+    child.stdin.write(prompt);
+    child.stdin.end();
   });
-
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error(`Claude API ${res.status}: ${detail.slice(0, 300)}`);
-  }
-
-  const data = (await res.json()) as {
-    content?: Array<{ type: string; text?: string }>;
-  };
-  return (data.content ?? [])
-    .filter((b) => b.type === "text" && b.text)
-    .map((b) => b.text)
-    .join("")
-    .trim();
 }
