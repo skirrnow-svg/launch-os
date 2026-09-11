@@ -5,9 +5,9 @@ import "./globals.css";
 export const runtime = "edge";
 
 export const metadata: Metadata = {
-  title: "Launch OS",
+  title: "SkirrNow — The autonomous AI ad agency",
   description:
-    "Multi-tenant SaaS for AI-native launch orchestration — generate assets, orchestrate campaigns, track results.",
+    "SkirrNow qualifies inbound leads, verifies the business, checks claims for legal risk, and produces sample ad copy and a concept video — with a one-click human approval gate.",
 };
 
 /**

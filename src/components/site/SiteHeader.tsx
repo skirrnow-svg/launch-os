@@ -1,0 +1,39 @@
+import Link from "next/link";
+
+/** Public marketing header. Anchors resolve to sections on the home page. */
+export default function SiteHeader() {
+  const nav = [
+    { href: "/#how", label: "How it works" },
+    { href: "/#features", label: "Features" },
+    { href: "/#pricing", label: "Pricing" },
+    { href: "/#faq", label: "FAQ" },
+  ];
+  return (
+    <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
+        <Link href="/" className="flex items-center gap-2 font-extrabold tracking-tight text-slate-900">
+          <span className="grid h-7 w-7 place-items-center rounded bg-accent text-sm font-black text-white">S</span>
+          <span className="text-lg">SkirrNow</span>
+        </Link>
+        <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
+          {nav.map((n) => (
+            <Link key={n.href} href={n.href} className="hover:text-slate-900">
+              {n.label}
+            </Link>
+          ))}
+        </nav>
+        <div className="flex items-center gap-3">
+          <Link href="/sign-in" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 sm:block">
+            Sign in
+          </Link>
+          <Link
+            href="/get-started"
+            className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+          >
+            Get started
+          </Link>
+        </div>
+      </div>
+    </header>
+  );
+}

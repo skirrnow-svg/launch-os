@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
-import { triggerRunner } from "@/lib/jobs";
-import { classifyIntent } from "@/lib/intent";
+import { ingestLead, resolveOrgId } from "@/lib/leads";
 import { withErrors } from "@/lib/api";
 
 export const runtime = "edge";
@@ -11,12 +9,11 @@ export const runtime = "edge";
  *
  * PUBLIC route (see middleware): inbound providers can't carry a Clerk session.
  * Body: { sender_email, subject?, body_text, org_id }. `org_id` may be the
- * internal organizations.id (uuid) or the Clerk org id — both are resolved to
- * the internal tenant id so Lead rows stay isolated like every other table.
+ * internal organizations.id (uuid) or the Clerk org id — both resolve to the
+ * internal tenant id so Lead rows stay isolated like every other table.
  *
  * On positive intent (INTERESTED) it inserts a PENDING Lead and fires a
- * `process_lead_qualification` repository_dispatch to wake the Actions runner
- * (which does the claude -p extraction, verification, and provisioning).
+ * `process_lead_qualification` repository_dispatch to wake the Actions runner.
  *
  * TODO(security): verify a provider HMAC signature before trusting org_id.
  */
@@ -40,37 +37,9 @@ export const POST = withErrors<unknown>(async (request) => {
     );
   }
 
-  // Resolve org_id (internal uuid OR clerk_org_id) to the internal tenant id.
-  const org = await prisma.organizations.findFirst({
-    where: { OR: [{ clerk_org_id: orgKey }, ...(isUuid(orgKey) ? [{ id: orgKey }] : [])] },
-    select: { id: true },
-  });
-  if (!org) {
-    return NextResponse.json({ error: "Unknown org_id." }, { status: 404 });
-  }
+  const orgId = await resolveOrgId(orgKey);
+  if (!orgId) return NextResponse.json({ error: "Unknown org_id." }, { status: 404 });
 
-  const intent = classifyIntent(subject, rawBody);
-
-  const lead = await prisma.lead.create({
-    data: {
-      org_id: org.id,
-      email,
-      raw_body: subject ? `Subject: ${subject}\n\n${rawBody}` : rawBody,
-      intent_status: intent,
-      status: intent === "UNSUBSCRIBE" ? "REJECTED" : "PENDING",
-    },
-    select: { id: true },
-  });
-
-  let dispatched = false;
-  if (intent === "INTERESTED") {
-    await triggerRunner("process_lead_qualification");
-    dispatched = true;
-  }
-
-  return NextResponse.json({ ok: true, lead_id: lead.id, intent_status: intent, dispatched });
+  const result = await ingestLead({ orgId, email, subject, body: rawBody });
+  return NextResponse.json({ ok: true, ...result });
 });
-
-function isUuid(v: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
-}
