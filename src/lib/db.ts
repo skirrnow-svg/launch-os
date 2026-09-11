@@ -1,17 +1,33 @@
 import { PrismaClient } from "@prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
+import { Pool, neonConfig } from "@neondatabase/serverless";
 
 /**
- * Prisma client singleton.
- * In dev, Next.js hot-reload would otherwise create a new client on every
- * reload and exhaust connections, so we cache it on globalThis.
+ * Prisma client singleton, backed by the Neon serverless driver adapter.
  *
- * Reads DATABASE_URL from the environment (see .env.example). The Prisma
- * models are generated from the database via `prisma db pull` once the Neon
- * branch has been provisioned with db/schema.sql — see prisma/schema.prisma.
+ * The adapter lets Prisma run on the Cloudflare Pages edge runtime (no TCP
+ * sockets) and works on Node too. On Node we give Neon's Pool a WebSocket
+ * implementation; on the edge the platform provides one natively.
+ *
+ * Reads DATABASE_URL from the environment (the Neon pooled connection string).
+ * In dev we cache the client on globalThis so hot-reload doesn't exhaust
+ * connections.
  */
+
+// On Node (no global WebSocket), supply `ws`. On the edge, WebSocket exists.
+if (typeof WebSocket === "undefined") {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  neonConfig.webSocketConstructor = require("ws");
+}
+
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma =
-  globalForPrisma.prisma ?? new PrismaClient();
+function createClient(): PrismaClient {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const adapter = new PrismaNeon(pool);
+  return new PrismaClient({ adapter });
+}
+
+export const prisma = globalForPrisma.prisma ?? createClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
