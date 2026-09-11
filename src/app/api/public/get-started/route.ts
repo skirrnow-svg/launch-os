@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { ingestLead } from "@/lib/leads";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 /**
  * POST /api/public/get-started — the marketing site's lead form.

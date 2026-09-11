@@ -3,7 +3,6 @@ import { notFound } from "next/navigation";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 
-export const runtime = "edge";
 
 /**
  * Admin integration settings.

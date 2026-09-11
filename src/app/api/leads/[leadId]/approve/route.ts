@@ -3,7 +3,6 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 type Ctx = { params: { leadId: string } };
 

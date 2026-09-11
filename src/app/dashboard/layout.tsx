@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { ClerkProvider, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 
-export const runtime = "edge";
 
 /**
  * Dashboard shell — deliberately does NO server data work at render.

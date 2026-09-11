@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 
-export const runtime = "edge";
 
 /** GET /api/projects — list the current org's non-deleted projects (newest first). */
 export async function GET() {

@@ -3,7 +3,6 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const ASSET_TYPES = ["image", "video", "email", "social"] as const;

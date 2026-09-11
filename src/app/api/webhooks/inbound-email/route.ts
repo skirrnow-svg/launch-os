@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { ingestLead, resolveOrgId } from "@/lib/leads";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 /**
  * POST /api/webhooks/inbound-email — ingest a prospect email reply.

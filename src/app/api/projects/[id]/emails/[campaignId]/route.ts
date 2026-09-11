@@ -4,7 +4,6 @@ import { prisma } from "@/lib/db";
 import { triggerRunner } from "@/lib/jobs";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Ctx = { params: { id: string; campaignId: string } };

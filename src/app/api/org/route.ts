@@ -3,7 +3,6 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrgBudget } from "@/lib/credits";
 
-export const runtime = "edge";
 
 /**
  * Current organization API.

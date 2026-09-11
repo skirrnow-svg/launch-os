@@ -3,7 +3,6 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 
-export const runtime = "edge";
 
 /**
  * GET /api/leads — the inbound pipeline for the active org.
