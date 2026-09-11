@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getOrgBudget } from "@/lib/credits";
 
 export const runtime = "edge";
 
@@ -13,7 +14,15 @@ export const runtime = "edge";
 
 export async function GET() {
   const { org } = await getContext();
-  return NextResponse.json({ org: { id: org.id, name: org.name, slug: org.slug } });
+  const [projectCount, budget] = await Promise.all([
+    prisma.projects.count({ where: { org_id: org.id, deleted_at: null } }),
+    getOrgBudget(org.id),
+  ]);
+  return NextResponse.json({
+    org: { id: org.id, name: org.name, slug: org.slug },
+    projectCount,
+    budget,
+  });
 }
 
 export async function PATCH(request: Request) {
