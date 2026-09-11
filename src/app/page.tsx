@@ -100,7 +100,7 @@ export default function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-6 pb-20 pt-16 sm:pt-24">
         <p className="mb-4 inline-flex items-center rounded bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
-          The autonomous AI ad agency
+          AI ad agency — for solopreneurs &amp; agencies
         </p>
         <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">
           Turn a single reply into a ready-to-send campaign — automatically.
@@ -176,7 +176,8 @@ export default function HomePage() {
       <section id="how" className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">From reply to campaign, on autopilot</h2>
         <p className="mt-3 max-w-2xl text-slate-600">
-          A request-to-fulfil pipeline runs in the background. You stay in control at the only step that matters — approval.
+          Whether the lead is yours or your client&apos;s, the pipeline runs in the background — and you stay in
+          control at the only step that matters: approval.
         </p>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (

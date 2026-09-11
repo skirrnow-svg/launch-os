@@ -52,7 +52,7 @@ export const BILLING_TIERS: BillingTier[] = [
     creditsPerMonth: 30,
     approxVideosPerMonth: 5,
     planIdEnvVar: "RAZORPAY_PLAN_STARTER",
-    tagline: "For solo operators testing the pipeline.",
+    tagline: "For solopreneurs getting started.",
     features: [
       "Full lead pipeline: qualify → verify → legal → sample copy",
       "~5 sample concept videos / month",
@@ -68,7 +68,7 @@ export const BILLING_TIERS: BillingTier[] = [
     creditsPerMonth: 90,
     approxVideosPerMonth: 15,
     planIdEnvVar: "RAZORPAY_PLAN_GROWTH",
-    tagline: "For an active agency running real inbound.",
+    tagline: "For busy solopreneurs & small agencies.",
     features: [
       "Everything in Starter",
       "~15 sample concept videos / month",
@@ -84,7 +84,7 @@ export const BILLING_TIERS: BillingTier[] = [
     creditsPerMonth: 180,
     approxVideosPerMonth: 30,
     planIdEnvVar: "RAZORPAY_PLAN_SCALE",
-    tagline: "For high-volume lead flow.",
+    tagline: "For agencies running high lead volume.",
     features: [
       "Everything in Growth",
       "~30 sample concept videos / month",
