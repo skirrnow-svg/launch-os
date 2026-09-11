@@ -106,9 +106,9 @@ export default function HomePage() {
           Turn a single reply into a ready-to-send campaign — automatically.
         </h1>
         <p className="mt-5 max-w-2xl text-lg text-slate-600">
-          SkirrNow qualifies inbound leads, verifies the business, checks the claims for legal risk, and
-          produces sample ad copy and a concept video — then hands you a one-click approve gate. It runs on
-          your own Claude and Higgsfield subscriptions, so there are no metered API bills.
+          Your ad agency if you&apos;re a solopreneur — and the engine that runs the agency if you already are
+          one. SkirrNow qualifies every lead, verifies the business, checks the claims for legal risk, and
+          produces sample ad copy and a concept video — then hands you a one-click approve gate.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
@@ -143,6 +143,32 @@ export default function HomePage() {
               <div className="mt-1 text-sm text-slate-500">{small}</div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Who it's for */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Built for two kinds of operators</h2>
+        <p className="mt-3 max-w-2xl text-slate-600">
+          Whether you need an agency or you are one, SkirrNow does the lead-to-creative work.
+        </p>
+        <div className="mt-10 grid gap-6 md:grid-cols-2">
+          <div className="rounded border border-slate-200 bg-white p-7">
+            <div className="text-sm font-bold text-accent">Solopreneurs</div>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">Your on-demand ad agency</h3>
+            <p className="mt-3 leading-relaxed text-slate-600">
+              No retainer, no agency overhead. Bring your leads or capture them here — SkirrNow qualifies each
+              one and delivers approve-ready ad copy and a concept video. You just say go.
+            </p>
+          </div>
+          <div className="rounded border border-slate-200 bg-white p-7">
+            <div className="text-sm font-bold text-accent">Ad agencies</div>
+            <h3 className="mt-2 text-xl font-semibold text-slate-900">Run your agency on autopilot</h3>
+            <p className="mt-3 leading-relaxed text-slate-600">
+              Point your inbound at SkirrNow and it qualifies, verifies, and drafts creative for every lead —
+              your team just reviews and approves. A white-label workspace per client keeps every account isolated.
+            </p>
+          </div>
         </div>
       </section>
 
