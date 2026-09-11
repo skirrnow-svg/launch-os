@@ -5,6 +5,13 @@ import { FormEvent, useState } from "react";
 type Fields = { name: string; email: string; company: string; metro: string; phone: string; message: string };
 const EMPTY: Fields = { name: "", email: "", company: "", metro: "", phone: "", message: "" };
 
+/** Major Indian cities offered as suggestions on the City field. */
+const INDIAN_CITIES = [
+  "Mumbai", "Delhi", "Bengaluru", "Hyderabad", "Chennai", "Kolkata", "Pune",
+  "Ahmedabad", "Jaipur", "Surat", "Lucknow", "Nagpur", "Indore", "Chandigarh",
+  "Kochi", "Coimbatore", "Panaji (Goa)", "Visakhapatnam", "Bhopal", "Gurugram", "Noida",
+];
+
 /** Public lead-capture form → POST /api/public/get-started → inbound pipeline. */
 export default function GetStartedForm() {
   const [f, setF] = useState<Fields>(EMPTY);
@@ -13,6 +20,12 @@ export default function GetStartedForm() {
   const [error, setError] = useState("");
 
   const set = (k: keyof Fields) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }));
+
+  // Phone is stored as E.164 with a fixed +91; the input holds the 10 local digits.
+  const setPhone = (e: { target: { value: string } }) => {
+    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+    setF((p) => ({ ...p, phone: digits ? `+91${digits}` : "" }));
+  };
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -57,23 +70,51 @@ export default function GetStartedForm() {
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={label} htmlFor="gs-name">Your name</label>
-          <input id="gs-name" className={input} value={f.name} onChange={set("name")} placeholder="Jane Doe" />
+          <input id="gs-name" className={input} value={f.name} onChange={set("name")} placeholder="Rahul Sharma" />
         </div>
         <div>
           <label className={label} htmlFor="gs-email">Work email *</label>
-          <input id="gs-email" type="email" required className={input} value={f.email} onChange={set("email")} placeholder="jane@company.com" />
+          <input id="gs-email" type="email" required className={input} value={f.email} onChange={set("email")} placeholder="rahul@company.in" />
         </div>
         <div>
           <label className={label} htmlFor="gs-company">Company</label>
-          <input id="gs-company" className={input} value={f.company} onChange={set("company")} placeholder="Apex Roofing" />
+          <input id="gs-company" className={input} value={f.company} onChange={set("company")} placeholder="Apex Interiors" />
         </div>
         <div>
-          <label className={label} htmlFor="gs-metro">Metro area</label>
-          <input id="gs-metro" className={input} value={f.metro} onChange={set("metro")} placeholder="Austin, TX" />
+          <label className={label} htmlFor="gs-metro">City</label>
+          <input
+            id="gs-metro"
+            list="in-cities"
+            className={input}
+            value={f.metro}
+            onChange={set("metro")}
+            placeholder="Mumbai"
+            autoComplete="address-level2"
+          />
+          <datalist id="in-cities">
+            {INDIAN_CITIES.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
         </div>
         <div className="sm:col-span-2">
           <label className={label} htmlFor="gs-phone">Phone</label>
-          <input id="gs-phone" className={input} value={f.phone} onChange={set("phone")} placeholder="+1 512 555 0148" />
+          <div className="flex">
+            <span className="inline-flex items-center rounded-l border border-r-0 border-slate-300 bg-slate-50 px-3 text-sm text-slate-500">
+              +91
+            </span>
+            <input
+              id="gs-phone"
+              type="tel"
+              inputMode="numeric"
+              maxLength={10}
+              className={`${input} rounded-l-none`}
+              value={f.phone.replace(/^\+91/, "")}
+              onChange={setPhone}
+              placeholder="98765 43210"
+              autoComplete="tel-national"
+            />
+          </div>
         </div>
         <div className="sm:col-span-2">
           <label className={label} htmlFor="gs-message">What do you sell? *</label>
@@ -84,7 +125,7 @@ export default function GetStartedForm() {
             className={input}
             value={f.message}
             onChange={set("message")}
-            placeholder="Residential roof replacement and storm-damage repair. Interested in seeing sample ads."
+            placeholder="Modular kitchens and home interior design. Interested in seeing sample ads."
           />
         </div>
       </div>
