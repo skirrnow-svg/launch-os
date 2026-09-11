@@ -10,7 +10,7 @@ export default function SiteFooter() {
           SkirrNow
         </div>
         <p className="text-sm text-slate-500">
-          The autonomous AI ad agency. Runs on your Claude &amp; Higgsfield subscriptions — no per-seat API bills.
+          The autonomous AI ad agency.
         </p>
         <div className="flex gap-5 text-sm text-slate-500">
           <Link href="/#pricing" className="hover:text-slate-900">Pricing</Link>
