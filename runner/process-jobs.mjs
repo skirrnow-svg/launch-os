@@ -352,13 +352,17 @@ async function processLead(lead) {
   const business_plausible = vr.business_plausible !== false;
   const metro_consistent = vr.metro_consistent !== false;
 
-  // 3) Legal / compliance risk check (secondary claude prompt).
-  const lr = parseJsonish(
-    claude(
-      `Proposed offer for ${company_name} (${niche}): ${core_offer}`,
-      'You are a consumer-protection compliance reviewer for ad claims. Flag deceptive or unsubstantiated claims (e.g. false long-term warranties, "$0" / free-with-strings pricing, guaranteed results). Return ONLY JSON {"legal_safe": boolean, "legal_issues": string[]}.',
-    ),
-  ) || {};
+  // 3) Legal / compliance risk check (secondary claude prompt). Only run it
+  // when there's a real offer — an empty offer is a missing-info case, not a
+  // legal violation, so we must not reject on it.
+  const lr = core_offer
+    ? parseJsonish(
+        claude(
+          `Proposed offer for ${company_name} (${niche}): ${core_offer}`,
+          'You are a consumer-protection compliance reviewer for ad claims. Flag deceptive or unsubstantiated claims (e.g. false long-term warranties, "$0" / free-with-strings pricing, guaranteed results). Return ONLY JSON {"legal_safe": boolean, "legal_issues": string[]}.',
+        ),
+      ) || {}
+    : { legal_safe: true, legal_issues: [] };
   const legal_safe = lr.legal_safe !== false;
   const legal_issues = Array.isArray(lr.legal_issues) ? lr.legal_issues.filter((x) => typeof x === "string") : [];
 
@@ -381,13 +385,8 @@ async function processLead(lead) {
 
   const actingUser = await orgActingUser(lead.org_id);
 
-  // Decision.
-  if (!legal_safe) {
-    await prisma.lead.update({ where: { id: lead.id }, data: { status: "REJECTED", verification } });
-    console.log(`[runner] lead ${lead.id} REJECTED (legal): ${legal_issues.join("; ")}`);
-    return;
-  }
-
+  // Decision — incomplete/ambiguous first (never legal-reject on missing
+  // data), then a genuine legal violation, else qualify.
   if (missing.length > 0 || !business_plausible || !metro_consistent) {
     // Incomplete / ambiguous → intake clarification draft into the email queue.
     const intake = await getIntakeProject(lead.org_id, actingUser);
@@ -406,6 +405,12 @@ async function processLead(lead) {
     });
     await prisma.lead.update({ where: { id: lead.id }, data: { status: "NEEDS_INFO", verification } });
     console.log(`[runner] lead ${lead.id} NEEDS_INFO (missing: ${missing.join(",") || "plausibility"}) — clarification drafted.`);
+    return;
+  }
+
+  if (!legal_safe) {
+    await prisma.lead.update({ where: { id: lead.id }, data: { status: "REJECTED", verification } });
+    console.log(`[runner] lead ${lead.id} REJECTED (legal): ${legal_issues.join("; ")}`);
     return;
   }
 
