@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { triggerRunner } from "@/lib/jobs";
+import { withErrors } from "@/lib/api";
 
 export const runtime = "edge";
 
@@ -19,12 +20,12 @@ async function loadPost(id: string, postId: string, orgId: string) {
 }
 
 /** GET one post. */
-export async function GET(_req: Request, { params }: Ctx) {
+export const GET = withErrors<Ctx>(async (_req, { params }) => {
   const { org } = await getContext();
   const post = await loadPost(params.id, params.postId, org.id);
   if (!post) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ post });
-}
+});
 
 /**
  * PATCH one post.
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: Ctx) {
  * brief? } to enqueue copy generation. The edge web tier can't run `claude`, so
  * it stores the brief, marks the post `queued`, and wakes the runner.
  */
-export async function PATCH(req: Request, { params }: Ctx) {
+export const PATCH = withErrors<Ctx>(async (req, { params }) => {
   const { org } = await getContext();
   const existing = await loadPost(params.id, params.postId, org.id);
   if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -77,4 +78,4 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   const post = await prisma.social_posts.update({ where: { id: existing.id }, data });
   return NextResponse.json({ post });
-}
+});

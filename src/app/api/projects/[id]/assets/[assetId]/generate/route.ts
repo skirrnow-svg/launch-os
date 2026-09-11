@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { staticCreditEstimate, modelFor, triggerRunner } from "@/lib/jobs";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
+import { withErrors } from "@/lib/api";
 
 export const runtime = "edge";
 
@@ -28,7 +29,7 @@ async function loadAsset(id: string, assetId: string, orgId: string) {
  * per-org budget, marks the asset `queued`, and wakes the GitHub Actions runner
  * (which runs Higgsfield and writes the result back). Body: { confirmed? }.
  */
-export async function POST(request: Request, { params }: Ctx) {
+export const POST = withErrors<Ctx>(async (request, { params }) => {
   const { org } = await getContext();
   const asset = await loadAsset(params.id, params.assetId, org.id);
   if (!asset) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -67,4 +68,4 @@ export async function POST(request: Request, { params }: Ctx) {
   });
   await triggerRunner("generate");
   return NextResponse.json({ status: "queued", asset: queued });
-}
+});

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { triggerRunner } from "@/lib/jobs";
+import { withErrors } from "@/lib/api";
 
 export const runtime = "edge";
 
@@ -18,12 +19,12 @@ async function loadCampaign(id: string, campaignId: string, orgId: string) {
 }
 
 /** GET one campaign. */
-export async function GET(_req: Request, { params }: Ctx) {
+export const GET = withErrors<Ctx>(async (_req, { params }) => {
   const { org } = await getContext();
   const campaign = await loadCampaign(params.id, params.campaignId, org.id);
   if (!campaign) return NextResponse.json({ error: "Not found." }, { status: 404 });
   return NextResponse.json({ campaign });
-}
+});
 
 /**
  * PATCH one campaign.
@@ -32,7 +33,7 @@ export async function GET(_req: Request, { params }: Ctx) {
  * and can't run `claude`, so it stores the brief, marks the campaign `queued`,
  * and wakes the runner (which writes the subject + HTML body).
  */
-export async function PATCH(req: Request, { params }: Ctx) {
+export const PATCH = withErrors<Ctx>(async (req, { params }) => {
   const { org } = await getContext();
   const existing = await loadCampaign(params.id, params.campaignId, org.id);
   if (!existing) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -70,4 +71,4 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   const campaign = await prisma.email_campaigns.update({ where: { id: existing.id }, data });
   return NextResponse.json({ campaign });
-}
+});

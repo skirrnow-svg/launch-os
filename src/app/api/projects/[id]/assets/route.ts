@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { withErrors } from "@/lib/api";
 
 export const runtime = "edge";
 
@@ -16,7 +17,7 @@ async function ensureProject(id: string, orgId: string) {
 }
 
 /** GET /api/projects/[id]/assets — list a project's assets (newest first). */
-export async function GET(_request: Request, { params }: Ctx) {
+export const GET = withErrors<Ctx>(async (_request, { params }) => {
   const { org } = await getContext();
   const project = await ensureProject(params.id, org.id);
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -25,7 +26,7 @@ export async function GET(_request: Request, { params }: Ctx) {
     orderBy: { created_at: "desc" },
   });
   return NextResponse.json({ assets });
-}
+});
 
 /**
  * POST /api/projects/[id]/assets — create an asset request (draft).
@@ -33,7 +34,7 @@ export async function GET(_request: Request, { params }: Ctx) {
  * confirm-gated `[assetId]/generate` endpoint → the runner. Copy lives in the
  * Emails / Social sections.
  */
-export async function POST(request: Request, { params }: Ctx) {
+export const POST = withErrors<Ctx>(async (request, { params }) => {
   const { user, org } = await getContext();
   const project = await ensureProject(params.id, org.id);
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
@@ -59,4 +60,4 @@ export async function POST(request: Request, { params }: Ctx) {
     data: { project_id: project.id, created_by: user.id, type, name, prompt, status: "draft" },
   });
   return NextResponse.json({ asset, generation: "draft" }, { status: 201 });
-}
+});
