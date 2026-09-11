@@ -82,6 +82,28 @@ export default function LeadsPage() {
     }
   }
 
+  async function deliver(lead: Lead) {
+    const camp = lead.client_profile?.project?.email_campaigns?.[0];
+    const ok = window.confirm(
+      `Send the approved email to ${lead.email}?\n\n` +
+        `Subject: ${camp?.subject ?? "(sample copy)"}\n\n` +
+        `This actually emails the prospect via Resend.`,
+    );
+    if (!ok) return;
+    setBusy(lead.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/deliver`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Send failed.");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-extrabold tracking-tight text-slate-900">Leads / Pipeline</h1>
@@ -103,6 +125,8 @@ export default function LeadsPage() {
           const camp = profile?.project?.email_campaigns?.[0];
           const video = profile?.project?.assets?.find((a) => a.url) ?? profile?.project?.assets?.[0];
           const canApprove = lead.status === "QUALIFIED";
+          const canSend = camp?.status === "ready_for_delivery";
+          const isSent = camp?.status === "sent";
           return (
             <div key={lead.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -181,11 +205,20 @@ export default function LeadsPage() {
               <div className="mt-4 flex items-center gap-3">
                 <button
                   onClick={() => approve(lead)}
-                  disabled={!canApprove || busy === lead.id}
+                  disabled={!canApprove || canSend || isSent || busy === lead.id}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {busy === lead.id ? "Approving…" : "1-Click Approve & Deliver"}
+                  {canSend || isSent ? "Approved ✓" : busy === lead.id ? "Approving…" : "1-Click Approve"}
                 </button>
+                {(canSend || isSent) && (
+                  <button
+                    onClick={() => deliver(lead)}
+                    disabled={isSent || busy === lead.id}
+                    className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isSent ? "Sent ✓" : busy === lead.id ? "Sending…" : "Send to prospect →"}
+                  </button>
+                )}
                 <span className="text-xs text-slate-400">intent: {lead.intent_status}</span>
               </div>
             </div>
