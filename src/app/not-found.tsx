@@ -1,8 +1,7 @@
 import Link from "next/link";
 
-export const runtime = "edge";
 
-/** Custom 404 — edge runtime so next-on-pages can build it. */
+/** Custom 404 — static (prerendered), served off the CDN. */
 export default function NotFound() {
   return (
     <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-16">

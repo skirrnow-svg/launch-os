@@ -2,7 +2,6 @@ import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import GetStartedForm from "@/components/site/GetStartedForm";
 
-export const runtime = "edge";
 
 export default function GetStartedPage() {
   return (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+import { ClerkProvider, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { getContext } from "@/lib/auth";
 
 export const runtime = "edge";
@@ -20,6 +20,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   ];
 
   return (
+    <ClerkProvider>
     <div className="min-h-screen grid grid-cols-[220px_1fr] bg-slate-50 text-slate-900">
       <aside className="border-r border-slate-200 bg-white flex flex-col">
         <div className="px-5 py-5 border-b border-slate-200">
@@ -52,5 +53,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </aside>
       <main className="p-8 overflow-x-hidden">{children}</main>
     </div>
+    </ClerkProvider>
   );
 }
