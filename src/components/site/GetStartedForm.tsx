@@ -66,19 +66,23 @@ export default function GetStartedForm() {
 
   return (
     <form onSubmit={submit} className="rounded border border-slate-200 bg-white p-6 sm:p-8">
-      {error && <p className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-danger">{error}</p>}
+      {error && (
+        <p role="alert" aria-live="polite" className="mb-4 rounded bg-red-50 px-3 py-2 text-sm text-danger">
+          {error}
+        </p>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
           <label className={label} htmlFor="gs-name">Your name</label>
-          <input id="gs-name" className={input} value={f.name} onChange={set("name")} placeholder="Rahul Sharma" />
+          <input id="gs-name" autoComplete="name" className={input} value={f.name} onChange={set("name")} placeholder="Rahul Sharma" />
         </div>
         <div>
           <label className={label} htmlFor="gs-email">Work email *</label>
-          <input id="gs-email" type="email" required className={input} value={f.email} onChange={set("email")} placeholder="rahul@company.in" />
+          <input id="gs-email" type="email" required autoComplete="email" inputMode="email" spellCheck={false} className={input} value={f.email} onChange={set("email")} placeholder="rahul@company.in" />
         </div>
         <div>
           <label className={label} htmlFor="gs-company">Company</label>
-          <input id="gs-company" className={input} value={f.company} onChange={set("company")} placeholder="Apex Interiors" />
+          <input id="gs-company" autoComplete="organization" className={input} value={f.company} onChange={set("company")} placeholder="Apex Interiors" />
         </div>
         <div>
           <label className={label} htmlFor="gs-metro">City</label>
