@@ -473,10 +473,12 @@ model Lead {
   verification      Json?
   status            String         @default("PENDING")
   client_profile_id String?        @unique
-  client_profile    ClientProfile? @relation(fields: [client_profile_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   created_at        DateTime       @default(now()) @db.Timestamp(6)
+  source            String         @default("inbound")
+  auto_video        Boolean        @default(true)
+  client_profile    ClientProfile? @relation(fields: [client_profile_id], references: [id], onUpdate: NoAction)
 
-  @@index([org_id, status])
+  @@index([org_id, status], map: "idx_leads_org_id_status")
   @@map("leads")
 }
 
@@ -491,10 +493,10 @@ model ClientProfile {
   niche            String
   brand_guidelines Json?
   project_id       String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamp(6)
   project          projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   lead             Lead?
-  created_at       DateTime @default(now()) @db.Timestamp(6)
 
-  @@index([org_id])
+  @@index([org_id], map: "idx_client_profiles_org_id")
   @@map("client_profiles")
 }

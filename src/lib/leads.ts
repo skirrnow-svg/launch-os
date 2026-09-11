@@ -15,6 +15,11 @@ export async function ingestLead(params: {
   subject?: string;
   body: string;
   forceInterested?: boolean;
+  /** "inbound" (default) or "pitch" (operator-initiated). */
+  source?: string;
+  /** When false, the runner generates copy only and leaves the concept video
+   *  as an explicit, cost-previewed action (pitch flow). Defaults to true. */
+  autoVideo?: boolean;
 }): Promise<IngestResult> {
   const subject = params.subject ?? "";
   const intent: Intent = params.forceInterested
@@ -28,6 +33,8 @@ export async function ingestLead(params: {
       raw_body: subject ? `Subject: ${subject}\n\n${params.body}` : params.body,
       intent_status: intent,
       status: intent === "UNSUBSCRIBE" ? "REJECTED" : "PENDING",
+      source: params.source ?? "inbound",
+      auto_video: params.autoVideo ?? true,
     },
     select: { id: true },
   });
