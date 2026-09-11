@@ -26,6 +26,11 @@ function createClient(): PrismaClient {
     const nodeRequire = eval("require") as NodeRequire;
     neonConfig.webSocketConstructor = nodeRequire("ws");
   }
+  // Route single-shot pool queries over Neon's HTTP fetch path instead of a
+  // WebSocket. On the Cloudflare Pages edge, WebSocket-backed writes were
+  // failing (reads worked), surfacing as HTML 500s in the UI; the fetch path
+  // is the supported, reliable transport in the Workers runtime.
+  neonConfig.poolQueryViaFetch = true;
   const pool = new Pool({ connectionString: process.env.DATABASE_URL });
   const adapter = new PrismaNeon(pool);
   return new PrismaClient({ adapter });

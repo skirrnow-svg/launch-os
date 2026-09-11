@@ -15,14 +15,19 @@ async function ensureProject(id: string, orgId: string) {
 
 /** GET /api/projects/[id]/social — list a project's social posts. */
 export async function GET(_request: Request, { params }: Ctx) {
-  const { org } = await getContext();
-  const project = await ensureProject(params.id, org.id);
-  if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
-  const posts = await prisma.social_posts.findMany({
-    where: { project_id: project.id },
-    orderBy: { created_at: "desc" },
-  });
-  return NextResponse.json({ posts });
+  try {
+    const { org } = await getContext();
+    const project = await ensureProject(params.id, org.id);
+    if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
+    const posts = await prisma.social_posts.findMany({
+      where: { project_id: project.id },
+      orderBy: { created_at: "desc" },
+    });
+    return NextResponse.json({ posts });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to load posts.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 /**
@@ -30,22 +35,27 @@ export async function GET(_request: Request, { params }: Ctx) {
  * Body: { content, platforms?: string[] }. TODO(phase-2): Buffer scheduling.
  */
 export async function POST(request: Request, { params }: Ctx) {
-  const { user, org } = await getContext();
-  const project = await ensureProject(params.id, org.id);
-  if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  try {
+    const { user, org } = await getContext();
+    const project = await ensureProject(params.id, org.id);
+    if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
-  const body = (await request.json().catch(() => ({}))) as {
-    content?: unknown;
-    platforms?: unknown;
-  };
-  const content = typeof body.content === "string" ? body.content.trim() : "";
-  if (!content) return NextResponse.json({ error: "Post content is required." }, { status: 400 });
-  const platforms = Array.isArray(body.platforms)
-    ? body.platforms.filter((p): p is string => typeof p === "string" && PLATFORMS.includes(p))
-    : [];
+    const body = (await request.json().catch(() => ({}))) as {
+      content?: unknown;
+      platforms?: unknown;
+    };
+    const content = typeof body.content === "string" ? body.content.trim() : "";
+    if (!content) return NextResponse.json({ error: "Post content is required." }, { status: 400 });
+    const platforms = Array.isArray(body.platforms)
+      ? body.platforms.filter((p): p is string => typeof p === "string" && PLATFORMS.includes(p))
+      : [];
 
-  const post = await prisma.social_posts.create({
-    data: { project_id: project.id, created_by: user.id, content, platforms, status: "draft" },
-  });
-  return NextResponse.json({ post }, { status: 201 });
+    const post = await prisma.social_posts.create({
+      data: { project_id: project.id, created_by: user.id, content, platforms, status: "draft" },
+    });
+    return NextResponse.json({ post }, { status: 201 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Failed to create post.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
