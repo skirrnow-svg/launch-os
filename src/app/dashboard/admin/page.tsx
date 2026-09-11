@@ -101,7 +101,7 @@ export default function AdminSettingsPage() {
         <button
           type="submit"
           disabled={status === "saving"}
-          style={{ justifySelf: "start", padding: "10px 18px", borderRadius: 8, border: 0, background: "#4f46e5", color: "#fff", fontWeight: 600, cursor: "pointer" }}
+          style={{ justifySelf: "start", padding: "10px 18px", borderRadius: 6, border: 0, background: "var(--accent)", color: "#17161D", fontWeight: 600, cursor: "pointer" }}
         >
           {status === "saving" ? "Saving…" : "Save keys"}
         </button>
