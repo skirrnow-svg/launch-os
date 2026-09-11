@@ -5,7 +5,7 @@ name: Generation runner
 # cron safety net, plus a manual trigger.
 on:
   repository_dispatch:
-    types: [generate]
+    types: [generate, process_lead_qualification]
   schedule:
     - cron: "*/10 * * * *" # safety net if a dispatch is missed
   workflow_dispatch: {}

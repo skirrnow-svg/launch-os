@@ -17,6 +17,27 @@ import { execFileSync } from "node:child_process";
 const prisma = new PrismaClient();
 const MAX_JOBS = Number(process.env.MAX_JOBS || 10); // bound a single run
 const AUTONOMOUS_CREDIT_CEILING = 25;
+// Hard monthly Higgsfield quota across the whole shared pool (all tenants).
+const MONTHLY_CREDIT_CAP = Number(process.env.HIGGSFIELD_MONTHLY_CAP || 200);
+
+/** Total Higgsfield credits spent this cycle across every org (shared pool). */
+async function globalCreditsUsed() {
+  const rows = await prisma.$queryRawUnsafe(
+    `SELECT COALESCE(SUM(credits_used), 0)::float8 AS used FROM organizations`,
+  );
+  return Number(rows?.[0]?.used ?? 0);
+}
+
+/** Loose E.164 validation: optional +, 8–15 digits. */
+function isE164(phone) {
+  if (typeof phone !== "string") return false;
+  const compact = phone.replace(/[\s()\-.]/g, "");
+  return /^\+?[1-9]\d{7,14}$/.test(compact);
+}
+function toE164(phone) {
+  const compact = String(phone || "").replace(/[\s()\-.]/g, "");
+  return compact.startsWith("+") ? compact : compact ? `+${compact}` : "";
+}
 
 function hf(args) {
   return execFileSync("higgsfield", args, { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
@@ -69,7 +90,7 @@ async function claimAsset() {
       ORDER BY created_at ASC
       LIMIT 1 FOR UPDATE SKIP LOCKED
     ) AND p.id = a.project_id
-    RETURNING a.id, a.type, a.prompt, p.org_id
+    RETURNING a.id, a.type, a.prompt, a.metadata, p.org_id
   `);
   return rows[0] || null;
 }
@@ -162,7 +183,33 @@ async function processAsset(asset) {
   const prompt = (asset.prompt || "").trim();
   if (!prompt) throw new Error("No prompt on asset.");
 
-  const cost = parseCredits(hf(["generate", "cost", jst, "--prompt", prompt]));
+  const meta = asset.metadata && typeof asset.metadata === "object" ? asset.metadata : {};
+  const isSample = meta.sample === true;
+  // Sample concept videos render in draft: fast mode, 480p, 4s, no audio —
+  // the cheapest way to preview a concept and stay inside the quota.
+  const draftArgs =
+    isSample && asset.type === "video"
+      ? ["--mode", "fast", "--resolution", "480p", "--duration", "4", "--generate-audio", "false"]
+      : [];
+
+  const cost = parseCredits(hf(["generate", "cost", jst, "--prompt", prompt, ...draftArgs]));
+
+  // Hard monthly Higgsfield quota across the whole shared pool.
+  const globalUsed = await globalCreditsUsed();
+  if (Number.isFinite(cost) && globalUsed + cost > MONTHLY_CREDIT_CAP) {
+    const msg = `BUDGET_CAP_EXCEEDED: global ${globalUsed}+~${cost} cr > ${MONTHLY_CREDIT_CAP} cap`;
+    if (isSample) {
+      // Sample pipeline: never fail the lead — keep the copy, skip the render.
+      await prisma.assets.update({
+        where: { id: asset.id },
+        data: { status: "draft", error_message: "BUDGET_CAP_EXCEEDED", metadata: { ...meta, budgetCapExceeded: true } },
+      });
+      console.error(`[runner] ${msg} — asset ${asset.id} kept as draft copy only.`);
+      return;
+    }
+    throw new Error(msg);
+  }
+
   const remaining = accountCredits();
   if (Number.isFinite(cost) && remaining != null && cost > remaining) {
     throw new Error(`Not enough credits: need ~${cost}, have ${remaining}.`);
@@ -172,12 +219,12 @@ async function processAsset(asset) {
   if (orgRemaining != null && Number.isFinite(cost) && cost > orgRemaining) {
     throw new Error(`Workspace budget: need ~${cost}, ${orgRemaining} left.`);
   }
-  if (asset.type === "video" && Number.isFinite(cost) && cost > AUTONOMOUS_CREDIT_CEILING) {
+  if (asset.type === "video" && !isSample && Number.isFinite(cost) && cost > AUTONOMOUS_CREDIT_CEILING) {
     // Was confirmed by a human at enqueue; log for the audit trail.
     console.log(`[runner] video job ${asset.id} ~${cost} cr (human-confirmed at enqueue)`);
   }
 
-  const out = hf(["generate", "create", jst, "--prompt", prompt, "--wait", "--json"]);
+  const out = hf(["generate", "create", jst, "--prompt", prompt, ...draftArgs, "--wait", "--json"]);
   const url = extractMediaUrl(out);
   if (!url) throw new Error("Generation finished but no media URL returned.");
 
@@ -187,7 +234,7 @@ async function processAsset(asset) {
       url,
       storage_key: url, // TODO: mirror to Cloudflare R2, then store the R2 key
       status: "ready",
-      metadata: { model: jst, creditsUsed: Number.isFinite(cost) ? cost : null },
+      metadata: { ...meta, model: jst, creditsUsed: Number.isFinite(cost) ? cost : null },
     },
   });
   if (Number.isFinite(cost) && cost > 0) {
@@ -199,8 +246,220 @@ async function processAsset(asset) {
   console.log(`[runner] ready ${asset.id} (${jst}, ~${cost} cr) → ${url}`);
 }
 
+// ---- Lead qualification (Phase 3 + 4) ---------------------------------------
+
+const str = (v) => (typeof v === "string" ? v.trim() : "");
+function slugify(input) {
+  return (
+    String(input || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40) || "workspace"
+  );
+}
+
+/** Atomically claim one PENDING interested lead. */
+async function claimLead() {
+  const rows = await prisma.$queryRawUnsafe(`
+    UPDATE leads SET status='PROCESSING'
+    WHERE id = (
+      SELECT id FROM leads
+      WHERE status='PENDING' AND intent_status='INTERESTED'
+      ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+    ) RETURNING id, org_id, email, raw_body
+  `);
+  return rows[0] || null;
+}
+
+/** The org's creating user — used as created_by on auto-provisioned rows. */
+async function orgActingUser(orgId) {
+  const org = await prisma.organizations.findUnique({ where: { id: orgId }, select: { created_by: true } });
+  if (!org) throw new Error(`org ${orgId} not found`);
+  return org.created_by;
+}
+
+/** Find or create a per-org "Intake" project to host clarification drafts. */
+async function getIntakeProject(orgId, actingUser) {
+  const slug = "intake";
+  const existing = await prisma.projects.findFirst({ where: { org_id: orgId, slug, deleted_at: null } });
+  if (existing) return existing;
+  return prisma.projects.create({
+    data: { org_id: orgId, name: "Intake", slug, description: "Inbound lead clarifications", status: "active", created_by: actingUser },
+  });
+}
+
+async function enqueueSampleEmail(projectId, actingUser, ctx) {
+  await prisma.email_campaigns.create({
+    data: {
+      project_id: projectId,
+      created_by: actingUser,
+      name: `Cold outreach — ${ctx.company_name}`,
+      subject: "(to be generated)",
+      from_name: "SkirrNow",
+      from_email: "launch@skirrnow.app",
+      template_html: "<div>pending</div>",
+      status: "queued",
+      generation_brief: `Write a concise cold-outreach FOLLOW-UP email to ${ctx.company_name} (${ctx.metro_area}), a ${ctx.niche} business. Core offer: ${ctx.core_offer}. Warm, specific, credible, one clear CTA to view free sample creative we made for them. No fabricated guarantees or pricing.`,
+    },
+  });
+}
+
+async function enqueueSampleVideo(projectId, actingUser, ctx) {
+  const script = parseJsonish(
+    claude(
+      `Company: ${ctx.company_name}. Metro: ${ctx.metro_area}. Niche: ${ctx.niche}. Offer: ${ctx.core_offer}.`,
+      'You are a short-form video ad director. Return ONLY JSON {"hook": string, "script": string, "visual_prompt": string} — a scroll-stopping 1-line hook, a ~4-second script, and a concise visual prompt for an AI concept video (no on-screen text, no unverifiable claims).',
+    ),
+  ) || {};
+  const visual = str(script.visual_prompt) || `${ctx.niche} concept ad for ${ctx.company_name}, ${ctx.metro_area}, cinematic`;
+  await prisma.assets.create({
+    data: {
+      project_id: projectId,
+      created_by: actingUser,
+      type: "video",
+      name: `Concept ad — ${ctx.company_name}`,
+      prompt: visual,
+      status: "queued",
+      metadata: { sample: true, hook: str(script.hook), script: str(script.script), requested: { mode: "fast", resolution: "480p", duration: 4 } },
+    },
+  });
+}
+
+async function processLead(lead) {
+  // 1) Extraction (claude -p → structured JSON).
+  const ex = parseJsonish(
+    claude(
+      lead.raw_body,
+      'You extract a business profile from an inbound email. Return ONLY JSON {"company_name": string, "metro_area": string, "phone": string, "niche": string, "core_offer": string}. Use "" for anything not stated.',
+    ),
+  ) || {};
+  const company_name = str(ex.company_name);
+  const metro_area = str(ex.metro_area);
+  const niche = str(ex.niche) || "General";
+  const core_offer = str(ex.core_offer);
+  const phoneRaw = str(ex.phone);
+  const phoneE164 = phoneRaw ? toE164(phoneRaw) : "";
+  const phoneValid = phoneRaw ? isE164(phoneE164) : null; // null = not provided
+
+  // 2) Data verification (business presence + metro consistency).
+  const vr = parseJsonish(
+    claude(
+      JSON.stringify({ company_name, metro_area, core_offer }),
+      'You are a business-data verifier. Judge plausibility only. Return ONLY JSON {"business_plausible": boolean, "metro_consistent": boolean, "notes": string}.',
+    ),
+  ) || {};
+  const business_plausible = vr.business_plausible !== false;
+  const metro_consistent = vr.metro_consistent !== false;
+
+  // 3) Legal / compliance risk check (secondary claude prompt).
+  const lr = parseJsonish(
+    claude(
+      `Proposed offer for ${company_name} (${niche}): ${core_offer}`,
+      'You are a consumer-protection compliance reviewer for ad claims. Flag deceptive or unsubstantiated claims (e.g. false long-term warranties, "$0" / free-with-strings pricing, guaranteed results). Return ONLY JSON {"legal_safe": boolean, "legal_issues": string[]}.',
+    ),
+  ) || {};
+  const legal_safe = lr.legal_safe !== false;
+  const legal_issues = Array.isArray(lr.legal_issues) ? lr.legal_issues.filter((x) => typeof x === "string") : [];
+
+  const missing = [];
+  if (!company_name) missing.push("company_name");
+  if (!metro_area) missing.push("metro_area");
+  if (!core_offer) missing.push("core_offer");
+  if (phoneValid === false) missing.push("valid_phone");
+
+  const verification = {
+    extracted: { company_name, metro_area, niche, core_offer },
+    phone: { value: phoneE164, e164_valid: phoneValid },
+    business_plausible,
+    metro_consistent,
+    legal_safe,
+    legal_issues,
+    missing,
+    audited_at: new Date().toISOString(),
+  };
+
+  const actingUser = await orgActingUser(lead.org_id);
+
+  // Decision.
+  if (!legal_safe) {
+    await prisma.lead.update({ where: { id: lead.id }, data: { status: "REJECTED", verification } });
+    console.log(`[runner] lead ${lead.id} REJECTED (legal): ${legal_issues.join("; ")}`);
+    return;
+  }
+
+  if (missing.length > 0 || !business_plausible || !metro_consistent) {
+    // Incomplete / ambiguous → intake clarification draft into the email queue.
+    const intake = await getIntakeProject(lead.org_id, actingUser);
+    await prisma.email_campaigns.create({
+      data: {
+        project_id: intake.id,
+        created_by: actingUser,
+        name: `Intake clarification — ${company_name || lead.email}`,
+        subject: "(to be generated)",
+        from_name: "SkirrNow",
+        from_email: "launch@skirrnow.app",
+        template_html: "<div>pending</div>",
+        status: "queued",
+        generation_brief: `Write a short, friendly clarification email to a prospect (${lead.email}) whose intake was incomplete/ambiguous. Politely request: ${missing.join(", ") || "confirmation of their business details, metro area, and offer"}. Keep it brief with one clear reply CTA. No claims or pricing.`,
+      },
+    });
+    await prisma.lead.update({ where: { id: lead.id }, data: { status: "NEEDS_INFO", verification } });
+    console.log(`[runner] lead ${lead.id} NEEDS_INFO (missing: ${missing.join(",") || "plausibility"}) — clarification drafted.`);
+    return;
+  }
+
+  // QUALIFIED → provision Project + ClientProfile, link the lead, enqueue samples.
+  const project = await prisma.projects.create({
+    data: {
+      org_id: lead.org_id,
+      name: company_name,
+      slug: `${slugify(company_name)}-${Date.now().toString(36)}`,
+      description: `Auto-provisioned from qualified lead ${lead.email}`,
+      status: "active",
+      created_by: actingUser,
+    },
+  });
+  const profile = await prisma.clientProfile.create({
+    data: {
+      org_id: lead.org_id,
+      company_name,
+      metro_area,
+      phone: phoneE164 || null,
+      niche,
+      project_id: project.id,
+    },
+  });
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { status: "QUALIFIED", verification, client_profile_id: profile.id },
+  });
+
+  const ctx = { company_name, metro_area, niche, core_offer };
+  await enqueueSampleEmail(project.id, actingUser, ctx);
+  await enqueueSampleVideo(project.id, actingUser, ctx);
+  console.log(`[runner] lead ${lead.id} QUALIFIED → project ${project.id}, profile ${profile.id}; samples enqueued.`);
+}
+
 async function main() {
   let processed = 0;
+
+  // 0) Lead qualification (extraction → verify → legal → provision → samples).
+  while (processed < MAX_JOBS) {
+    const lead = await claimLead();
+    if (!lead) break;
+    try {
+      await processLead(lead);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      await prisma.lead.update({
+        where: { id: lead.id },
+        data: { status: "ERROR", verification: { error: message, at: new Date().toISOString() } },
+      });
+      console.error(`[runner] lead ${lead.id} error: ${message}`);
+    }
+    processed += 1;
+  }
 
   // 1) Media assets (Higgsfield).
   while (processed < MAX_JOBS) {
