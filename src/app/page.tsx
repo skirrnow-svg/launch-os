@@ -247,7 +247,7 @@ export default function HomePage() {
       <section className="bg-slate-900">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-white">Ready to let the agency run itself?</h2>
+            <h2 className="text-2xl font-extrabold tracking-tight text-white">Ready to work with SkirrNow?</h2>
             <p className="mt-2 text-slate-300">Send us a note — we&apos;ll show you a qualified lead with sample creative.</p>
           </div>
           <Link
