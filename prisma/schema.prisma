@@ -151,6 +151,7 @@ model email_campaigns {
   created_by         String             @db.Uuid
   created_at         DateTime?          @default(now()) @db.Timestamp(6)
   updated_at         DateTime?          @default(now()) @db.Timestamp(6)
+  generation_brief   String?
   ab_tests           ab_tests[]
   users              users              @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   projects           projects           @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -353,23 +354,24 @@ model social_metrics {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model social_posts {
-  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  project_id      String           @db.Uuid
-  content         String
-  platforms       String[]
-  schedule_time   DateTime?        @db.Timestamp(6)
-  status          String           @default("draft")
-  image_url       String?
-  video_url       String?
-  link_url        String?
-  buffer_post_ids Json?            @default("{}")
-  hashtags        String[]         @default([])
-  created_by      String           @db.Uuid
-  created_at      DateTime?        @default(now()) @db.Timestamp(6)
-  updated_at      DateTime?        @default(now()) @db.Timestamp(6)
-  social_metrics  social_metrics[]
-  users           users            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  projects        projects         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id               String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  project_id       String           @db.Uuid
+  content          String
+  platforms        String[]
+  schedule_time    DateTime?        @db.Timestamp(6)
+  status           String           @default("draft")
+  image_url        String?
+  video_url        String?
+  link_url         String?
+  buffer_post_ids  Json?            @default("{}")
+  hashtags         String[]         @default([])
+  created_by       String           @db.Uuid
+  created_at       DateTime?        @default(now()) @db.Timestamp(6)
+  updated_at       DateTime?        @default(now()) @db.Timestamp(6)
+  generation_brief String?
+  social_metrics   social_metrics[]
+  users            users            @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projects         projects         @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([project_id], map: "idx_social_posts_project_id")
   @@index([status], map: "idx_social_posts_status")

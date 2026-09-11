@@ -78,15 +78,10 @@ export default function CampaignDetailPage() {
     setNotice("");
     try {
       const data = await patch({ generate: true, brief });
-      if (data.generation === "not-configured") {
-        setNotice("Claude CLI isn't reachable on the host — can't generate copy right now.");
-      } else if (data.generation === "error") {
-        setNotice("Generation failed — try again.");
+      if (data.generation === "queued") {
+        setNotice("Queued — the runner is writing your copy with Claude. Refresh in a moment to see it.");
       } else {
-        setC(data.campaign);
-        setSubject(data.campaign.subject);
-        setHtml(data.campaign.template_html);
-        setNotice("Draft written by Claude. Review and save.");
+        setNotice("Requested.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not generate.");

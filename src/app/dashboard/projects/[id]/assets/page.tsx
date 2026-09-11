@@ -25,7 +25,6 @@ export default function ProjectAssetsPage() {
   const [type, setType] = useState("image");
   const [name, setName] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [withAI, setWithAI] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -124,7 +123,7 @@ export default function ProjectAssetsPage() {
       const res = await fetch(`/api/projects/${id}/assets`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, name, prompt, generate: withAI }),
+        body: JSON.stringify({ type, name, prompt }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not create asset.");
@@ -195,16 +194,12 @@ export default function ProjectAssetsPage() {
             className="rounded-lg border border-slate-300 px-3 py-2 text-sm resize-y"
           />
         </div>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
-          <input type="checkbox" checked={withAI} onChange={(e) => setWithAI(e.target.checked)} />
-          Generate with AI (uses this org&apos;s API keys)
-        </label>
         <button
           type="submit"
           disabled={saving}
           className="justify-self-start rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
         >
-          {saving ? (withAI ? "Generating…" : "Saving…") : withAI ? "Generate asset" : "Save draft"}
+          {saving ? "Saving…" : "Add asset"}
         </button>
         {notice && <p className="text-sm text-emerald-700" role="status">{notice}</p>}
         {error && <p className="text-sm text-red-600" role="alert">{error}</p>}

@@ -5,6 +5,8 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrgBudget } from "@/lib/credits";
 
+export const runtime = "edge";
+
 export default async function DashboardHome() {
   const { user, org } = await getContext();
   const projectCount = await prisma.projects.count({

@@ -7,6 +7,8 @@ import {
   type ManagedKey,
 } from "@/lib/settings";
 
+export const runtime = "edge";
+
 /**
  * Admin integration settings API.
  *

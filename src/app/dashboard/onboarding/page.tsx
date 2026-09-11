@@ -3,6 +3,8 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import OnboardingWizard from "./wizard";
 
+export const runtime = "edge";
+
 /**
  * First-run onboarding. Server wrapper: if the org already has a project the
  * wizard is unnecessary, so we send the user straight to the dashboard.

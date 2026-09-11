@@ -2,6 +2,8 @@ import Link from "next/link";
 import { UserButton, OrganizationSwitcher } from "@clerk/nextjs";
 import { getContext } from "@/lib/auth";
 
+export const runtime = "edge";
+
 /**
  * Dashboard shell. Server component: calling getContext() here syncs a
  * first-time Clerk user into the DB and ensures their personal org exists

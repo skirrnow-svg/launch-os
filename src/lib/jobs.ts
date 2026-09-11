@@ -20,6 +20,11 @@ export function staticCreditEstimate(kind: "image" | "video"): number {
   return kind === "video" ? 30 : 7;
 }
 
+/** Default Higgsfield model per kind (kept node-free so edge routes can import it). */
+export function modelFor(kind: "image" | "video"): string {
+  return kind === "video" ? "seedance_2_0" : "gpt_image_2";
+}
+
 /**
  * Wake the GitHub Actions runner via repository_dispatch. Best-effort: if the
  * token/repo env is missing or the call fails, the workflow's cron safety net

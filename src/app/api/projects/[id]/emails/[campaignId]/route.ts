@@ -1,22 +1,20 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateText } from "@/lib/claude";
-import { isMissingKey } from "@/lib/errors";
+import { triggerRunner } from "@/lib/jobs";
+
+export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Ctx = { params: { id: string; campaignId: string } };
 
-/** Load a campaign only if it belongs to a project in the caller's org. */
 async function loadCampaign(id: string, campaignId: string, orgId: string) {
   if (!UUID.test(id) || !UUID.test(campaignId)) return null;
   const project = await prisma.projects.findFirst({
     where: { id, org_id: orgId, deleted_at: null },
   });
   if (!project) return null;
-  return prisma.email_campaigns.findFirst({
-    where: { id: campaignId, project_id: project.id },
-  });
+  return prisma.email_campaigns.findFirst({ where: { id: campaignId, project_id: project.id } });
 }
 
 /** GET one campaign. */
@@ -30,7 +28,9 @@ export async function GET(_req: Request, { params }: Ctx) {
 /**
  * PATCH one campaign.
  * Body: { name?, subject?, template_html?, plain_text? } to edit, and/or
- * { generate: true, brief?: string } to have Claude write the subject + body.
+ * { generate:true, brief? } to enqueue copy generation — the web tier is edge
+ * and can't run `claude`, so it stores the brief, marks the campaign `queued`,
+ * and wakes the runner (which writes the subject + HTML body).
  */
 export async function PATCH(req: Request, { params }: Ctx) {
   const { org } = await getContext();
@@ -52,54 +52,22 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (typeof body.template_html === "string") data.template_html = body.template_html;
   if (typeof body.plain_text === "string") data.plain_text = body.plain_text;
 
-  let generation: string | undefined;
   if (body.generate === true) {
     const brief =
       typeof body.brief === "string" && body.brief.trim()
         ? body.brief.trim()
         : `Campaign: ${existing.name}. Current subject: ${existing.subject}.`;
-    try {
-      const out = await generateText({
-        orgId: org.id,
-        system:
-          "You are a senior launch email copywriter. Given a brief, return ONLY a JSON object " +
-          '{"subject": string, "html": string} — a compelling subject line and a complete, ' +
-          "well-structured HTML email body (inline-friendly, no <html>/<head> wrapper). No prose outside the JSON.",
-        prompt: brief,
-        maxTokens: 1500,
-      });
-      const parsed = parseEmail(out);
-      if (parsed.subject) data.subject = parsed.subject;
-      if (parsed.html) data.template_html = parsed.html;
-      generation = "ready";
-    } catch (e) {
-      if (isMissingKey(e)) generation = "not-configured";
-      else generation = "error";
-    }
+    const campaign = await prisma.email_campaigns.update({
+      where: { id: existing.id },
+      data: { ...data, generation_brief: brief, status: "queued" },
+    });
+    await triggerRunner("generate");
+    return NextResponse.json({ campaign, generation: "queued" });
   }
 
-  if (Object.keys(data).length === 0 && !generation) {
+  if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
-
-  const campaign =
-    Object.keys(data).length > 0
-      ? await prisma.email_campaigns.update({ where: { id: existing.id }, data })
-      : existing;
-
-  return NextResponse.json({ campaign, generation });
-}
-
-/** Best-effort parse of Claude's JSON email; falls back to treating text as HTML. */
-function parseEmail(text: string): { subject?: string; html?: string } {
-  const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  try {
-    const obj = JSON.parse(trimmed) as { subject?: unknown; html?: unknown };
-    return {
-      subject: typeof obj.subject === "string" ? obj.subject : undefined,
-      html: typeof obj.html === "string" ? obj.html : undefined,
-    };
-  } catch {
-    return { html: `<div>${trimmed}</div>` };
-  }
+  const campaign = await prisma.email_campaigns.update({ where: { id: existing.id }, data });
+  return NextResponse.json({ campaign });
 }

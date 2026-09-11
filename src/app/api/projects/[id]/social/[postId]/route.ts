@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { generateText } from "@/lib/claude";
-import { isMissingKey } from "@/lib/errors";
+import { triggerRunner } from "@/lib/jobs";
+
+export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const PLATFORMS = ["twitter", "linkedin", "instagram", "facebook"];
@@ -27,8 +28,9 @@ export async function GET(_req: Request, { params }: Ctx) {
 
 /**
  * PATCH one post.
- * Body: { content?, platforms?, hashtags? } to edit, and/or
- * { generate:true, brief? } to have Claude write platform-aware copy + hashtags.
+ * Body: { content?, platforms?, hashtags? } to edit, and/or { generate:true,
+ * brief? } to enqueue copy generation. The edge web tier can't run `claude`, so
+ * it stores the brief, marks the post `queued`, and wakes the runner.
  */
 export async function PATCH(req: Request, { params }: Ctx) {
   const { org } = await getContext();
@@ -43,7 +45,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     brief?: unknown;
   };
 
-  const data: { content?: string; platforms?: string[]; hashtags?: string[] } = {};
+  const data: { content?: string; platforms?: string[]; hashtags?: string[]; generation_brief?: string; status?: string } = {};
   if (typeof body.content === "string") data.content = body.content;
   if (Array.isArray(body.platforms)) {
     data.platforms = body.platforms.filter(
@@ -57,55 +59,22 @@ export async function PATCH(req: Request, { params }: Ctx) {
       .filter(Boolean);
   }
 
-  let generation: string | undefined;
   if (body.generate === true) {
     const targets = (data.platforms ?? existing.platforms).join(", ") || "social media";
     const brief =
       typeof body.brief === "string" && body.brief.trim()
         ? body.brief.trim()
         : existing.content || "Announce our launch.";
-    try {
-      const out = await generateText({
-        orgId: org.id,
-        system:
-          `You are a senior social copywriter. Write ONE post for these platforms: ${targets}. ` +
-          'Return ONLY a JSON object {"content": string, "hashtags": string[]} — punchy on-brand ' +
-          "copy that fits the platforms' norms, plus 3-6 relevant hashtags (no # prefix).",
-        prompt: brief,
-        maxTokens: 600,
-      });
-      const parsed = parsePost(out);
-      if (parsed.content) data.content = parsed.content;
-      if (parsed.hashtags) data.hashtags = parsed.hashtags;
-      generation = "ready";
-    } catch (e) {
-      generation = isMissingKey(e) ? "not-configured" : "error";
-    }
+    data.generation_brief = `Platforms: ${targets}. ${brief}`;
+    data.status = "queued";
+    const post = await prisma.social_posts.update({ where: { id: existing.id }, data });
+    await triggerRunner("generate");
+    return NextResponse.json({ post, generation: "queued" });
   }
 
-  if (Object.keys(data).length === 0 && !generation) {
+  if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
   }
-
-  const post =
-    Object.keys(data).length > 0
-      ? await prisma.social_posts.update({ where: { id: existing.id }, data })
-      : existing;
-
-  return NextResponse.json({ post, generation });
-}
-
-function parsePost(text: string): { content?: string; hashtags?: string[] } {
-  const trimmed = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-  try {
-    const obj = JSON.parse(trimmed) as { content?: unknown; hashtags?: unknown };
-    return {
-      content: typeof obj.content === "string" ? obj.content : undefined,
-      hashtags: Array.isArray(obj.hashtags)
-        ? obj.hashtags.filter((h): h is string => typeof h === "string").map((h) => h.replace(/^#/, ""))
-        : undefined,
-    };
-  } catch {
-    return { content: trimmed };
-  }
+  const post = await prisma.social_posts.update({ where: { id: existing.id }, data });
+  return NextResponse.json({ post });
 }

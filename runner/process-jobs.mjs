@@ -74,6 +74,79 @@ async function claimAsset() {
   return rows[0] || null;
 }
 
+// ---- Copy generation (Claude, via `claude -p` on the subscription) ----------
+
+function claude(prompt, system) {
+  const full = system ? `${system}\n\n${prompt}` : prompt;
+  return execFileSync("claude", ["-p", "--max-turns", "1", "--model", process.env.CLAUDE_CODE_MODEL || "sonnet"], {
+    input: full,
+    encoding: "utf8",
+    maxBuffer: 16 * 1024 * 1024,
+  });
+}
+function parseJsonish(text) {
+  const t = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  try { return JSON.parse(t); } catch { return null; }
+}
+
+async function claimCampaign() {
+  const rows = await prisma.$queryRawUnsafe(`
+    UPDATE email_campaigns SET status='generating', updated_at=now()
+    WHERE id = (
+      SELECT id FROM email_campaigns
+      WHERE status='queued' AND generation_brief IS NOT NULL
+      ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+    ) RETURNING id, name, subject, generation_brief
+  `);
+  return rows[0] || null;
+}
+async function processCampaign(c) {
+  const out = claude(
+    c.generation_brief,
+    'You are a senior launch email copywriter. Return ONLY JSON {"subject": string, "html": string} — a compelling subject and a complete inline-friendly HTML email body (no <html>/<head> wrapper). No prose outside the JSON.',
+  );
+  const parsed = parseJsonish(out) || {};
+  await prisma.email_campaigns.update({
+    where: { id: c.id },
+    data: {
+      subject: typeof parsed.subject === "string" ? parsed.subject : c.subject,
+      template_html: typeof parsed.html === "string" ? parsed.html : `<div>${out.trim()}</div>`,
+      status: "draft",
+      generation_brief: null,
+    },
+  });
+  console.log(`[runner] campaign ${c.id} copy ready`);
+}
+
+async function claimPost() {
+  const rows = await prisma.$queryRawUnsafe(`
+    UPDATE social_posts SET status='generating', updated_at=now()
+    WHERE id = (
+      SELECT id FROM social_posts
+      WHERE status='queued' AND generation_brief IS NOT NULL
+      ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+    ) RETURNING id, content, generation_brief
+  `);
+  return rows[0] || null;
+}
+async function processPost(p) {
+  const out = claude(
+    p.generation_brief,
+    'You are a senior social copywriter. Return ONLY JSON {"content": string, "hashtags": string[]} — punchy on-brand copy plus 3-6 hashtags (no # prefix).',
+  );
+  const parsed = parseJsonish(out) || {};
+  await prisma.social_posts.update({
+    where: { id: p.id },
+    data: {
+      content: typeof parsed.content === "string" ? parsed.content : out.trim(),
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags.filter((h) => typeof h === "string").map((h) => h.replace(/^#/, "")) : [],
+      status: "draft",
+      generation_brief: null,
+    },
+  });
+  console.log(`[runner] post ${p.id} copy ready`);
+}
+
 /** Per-org budget: returns remaining credits, or null for unlimited. */
 async function remainingOrgCredits(orgId) {
   const org = await prisma.organizations.findUnique({
@@ -128,6 +201,8 @@ async function processAsset(asset) {
 
 async function main() {
   let processed = 0;
+
+  // 1) Media assets (Higgsfield).
   while (processed < MAX_JOBS) {
     const asset = await claimAsset();
     if (!asset) break;
@@ -143,6 +218,33 @@ async function main() {
     }
     processed += 1;
   }
+
+  // 2) Email copy (Claude).
+  while (processed < MAX_JOBS) {
+    const c = await claimCampaign();
+    if (!c) break;
+    try {
+      await processCampaign(c);
+    } catch (e) {
+      await prisma.email_campaigns.update({ where: { id: c.id }, data: { status: "draft", generation_brief: null } });
+      console.error(`[runner] campaign ${c.id} error: ${e instanceof Error ? e.message : e}`);
+    }
+    processed += 1;
+  }
+
+  // 3) Social copy (Claude).
+  while (processed < MAX_JOBS) {
+    const p = await claimPost();
+    if (!p) break;
+    try {
+      await processPost(p);
+    } catch (e) {
+      await prisma.social_posts.update({ where: { id: p.id }, data: { status: "draft", generation_brief: null } });
+      console.error(`[runner] post ${p.id} error: ${e instanceof Error ? e.message : e}`);
+    }
+    processed += 1;
+  }
+
   console.log(`[runner] done — processed ${processed} job(s).`);
   await prisma.$disconnect();
 }

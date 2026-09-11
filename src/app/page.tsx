@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+export const runtime = "edge";
+
 /**
  * Launch OS landing page (Phase 0 stub).
  * Brand: Slate neutrals + single Blue accent, Inter, no gradients, corners <= 8px.

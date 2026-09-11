@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import {
-  generate,
-  estimateCost,
-  higgsfieldConfigured,
-  modelFor,
-  type HiggsfieldKind,
-} from "@/lib/higgsfield";
-import { isConfirmationRequired, isBudgetExceeded } from "@/lib/errors";
-import { generationMode, staticCreditEstimate, triggerRunner } from "@/lib/jobs";
-import { assertOrgBudget, recordOrgSpend } from "@/lib/credits";
+import { staticCreditEstimate, modelFor, triggerRunner } from "@/lib/jobs";
+import { assertOrgBudget } from "@/lib/credits";
+import { isBudgetExceeded } from "@/lib/errors";
+
+export const runtime = "edge";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Ctx = { params: { id: string; assetId: string } };
+type Kind = "image" | "video";
 
 async function loadAsset(id: string, assetId: string, orgId: string) {
   if (!UUID.test(id) || !UUID.test(assetId)) return null;
@@ -25,14 +21,12 @@ async function loadAsset(id: string, assetId: string, orgId: string) {
 }
 
 /**
- * POST /api/projects/[id]/assets/[assetId]/generate — generate the media for an
- * image/video asset via Higgsfield, ENFORCING the credit guardrail.
+ * POST /api/projects/[id]/assets/[assetId]/generate — enqueue media generation.
  *
- * Body: { confirmed?: boolean }.
- *  - Without confirmed: prices the job (no spend) and returns
- *    { status:'confirmation-required', estimatedCredits, model } — the UI shows
- *    the cost and asks. This is the owner rule: confirm before ANY spend.
- *  - With confirmed:true: runs it, stores the result URL, marks asset 'ready'.
+ * The web tier never runs the CLI (it's edge). Without `confirmed` it returns
+ * an approximate credit cost to confirm; with confirmed:true it checks the
+ * per-org budget, marks the asset `queued`, and wakes the GitHub Actions runner
+ * (which runs Higgsfield and writes the result back). Body: { confirmed? }.
  */
 export async function POST(request: Request, { params }: Ctx) {
   const { org } = await getContext();
@@ -41,100 +35,36 @@ export async function POST(request: Request, { params }: Ctx) {
   if (asset.type !== "image" && asset.type !== "video") {
     return NextResponse.json({ error: "Only image/video assets generate media." }, { status: 400 });
   }
-  const prompt = asset.prompt?.trim();
-  if (!prompt) {
+  if (!asset.prompt?.trim()) {
     return NextResponse.json({ error: "This asset has no prompt yet." }, { status: 400 });
   }
 
-  const kind = asset.type as HiggsfieldKind;
+  const kind = asset.type as Kind;
   const body = (await request.json().catch(() => ({}))) as { confirmed?: unknown };
   const confirmed = body.confirmed === true;
 
-  // Queue mode (Cloudflare Pages): no CLI here. Show a CLI-free estimate, then
-  // on confirmation mark the row `queued` and wake the Actions runner.
-  if (generationMode() === "queue") {
-    if (!confirmed) {
-      return NextResponse.json({
-        status: "confirmation-required",
-        estimatedCredits: staticCreditEstimate(kind),
-        model: modelFor(kind),
-        estimate: "approximate",
-      });
-    }
-    try {
-      await assertOrgBudget(org.id, staticCreditEstimate(kind));
-    } catch (e) {
-      if (isBudgetExceeded(e)) {
-        return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });
-      }
-    }
-    const queued = await prisma.assets.update({
-      where: { id: asset.id },
-      data: { status: "queued", error_message: null },
-    });
-    await triggerRunner("generate");
-    return NextResponse.json({ status: "queued", asset: queued });
-  }
-
-  // Inline mode (local / the runner itself): the CLI is present.
-  if (!(await higgsfieldConfigured())) {
-    return NextResponse.json(
-      { status: "not-configured", message: "Higgsfield CLI is not installed or authenticated on the host." },
-      { status: 200 },
-    );
-  }
-
-  // Price-only path: no spend, just return the estimate to confirm against.
   if (!confirmed) {
-    try {
-      const estimatedCredits = await estimateCost(kind, prompt);
-      return NextResponse.json({
-        status: "confirmation-required",
-        estimatedCredits,
-        model: modelFor(kind),
-      });
-    } catch (e) {
-      return NextResponse.json(
-        { status: "error", message: e instanceof Error ? e.message : "Could not price the job." },
-        { status: 200 },
-      );
-    }
+    return NextResponse.json({
+      status: "confirmation-required",
+      estimatedCredits: staticCreditEstimate(kind),
+      model: modelFor(kind),
+      estimate: "approximate",
+    });
   }
 
-  // Confirmed spend.
   try {
-    // Per-org budget gate before any spend.
-    try {
-      await assertOrgBudget(org.id, await estimateCost(kind, prompt));
-    } catch (e) {
-      if (isBudgetExceeded(e)) {
-        return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });
-      }
-      throw e;
-    }
-    await prisma.assets.update({ where: { id: asset.id }, data: { status: "generating", error_message: null } });
-    const result = await generate({ orgId: org.id, kind, prompt, confirmed: true });
-    await recordOrgSpend(org.id, result.creditsUsed);
-    const updated = await prisma.assets.update({
-      where: { id: asset.id },
-      data: {
-        url: result.url,
-        storage_key: result.storageKey,
-        status: "ready",
-        metadata: { model: result.model, creditsUsed: result.creditsUsed },
-      },
-    });
-    return NextResponse.json({ status: "ready", asset: updated, creditsUsed: result.creditsUsed, model: result.model });
+    await assertOrgBudget(org.id, staticCreditEstimate(kind));
   } catch (e) {
-    if (isConfirmationRequired(e)) {
-      // Shouldn't happen (we passed confirmed), but surface the cost if it does.
-      return NextResponse.json(
-        { status: "confirmation-required", estimatedCredits: e.estimatedCredits, message: e.message },
-        { status: 200 },
-      );
+    if (isBudgetExceeded(e)) {
+      return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });
     }
-    const message = e instanceof Error ? e.message : "Generation failed.";
-    await prisma.assets.update({ where: { id: asset.id }, data: { status: "error", error_message: message } });
-    return NextResponse.json({ status: "error", message }, { status: 200 });
+    throw e;
   }
+
+  const queued = await prisma.assets.update({
+    where: { id: asset.id },
+    data: { status: "queued", error_message: null },
+  });
+  await triggerRunner("generate");
+  return NextResponse.json({ status: "queued", asset: queued });
 }
