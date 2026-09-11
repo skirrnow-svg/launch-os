@@ -1,13 +1,16 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server";
 
 /**
- * Clerk auth middleware (Phase 0 stub).
+ * Clerk auth middleware.
  *
  * Public routes are accessible without authentication. Every other route is
- * protected: unauthenticated requests are redirected to sign-in by Clerk.
- *
- * TODO(phase-1): add org-scoped authorization (RBAC) and per-route policies
- * once the sign-in / sign-up flows and org resolution exist.
+ * protected: an unauthenticated request is redirected to the app's OWN
+ * /sign-in page (same origin), not Clerk's hosted Account Portal. Keeping the
+ * sign-in flow on-origin is what makes the development Clerk instance hand the
+ * session back correctly on a deployed domain — a cross-origin bounce to
+ * accounts.dev leaves the dev-browser token behind and "nothing happens"
+ * after authenticating.
  */
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -20,8 +23,12 @@ const isPublicRoute = createRouteMatcher([
 
 export default clerkMiddleware((auth, req) => {
   if (!isPublicRoute(req)) {
-    const { userId, redirectToSignIn } = auth();
-    if (!userId) return redirectToSignIn();
+    const { userId } = auth();
+    if (!userId) {
+      const signInUrl = new URL("/sign-in", req.url);
+      signInUrl.searchParams.set("redirect_url", req.url);
+      return NextResponse.redirect(signInUrl);
+    }
   }
 });
 
