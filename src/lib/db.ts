@@ -14,10 +14,12 @@ import { Pool, neonConfig } from "@neondatabase/serverless";
  * connections.
  */
 
-// On Node (no global WebSocket), supply `ws`. On the edge, WebSocket exists.
-if (typeof WebSocket === "undefined") {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  neonConfig.webSocketConstructor = require("ws");
+// On Node (no global WebSocket), supply `ws`. On the edge, WebSocket is native.
+// Use an indirect require so the edge bundler never tries to include `ws`.
+if (process.env.NEXT_RUNTIME !== "edge" && typeof WebSocket === "undefined") {
+  // eslint-disable-next-line no-eval
+  const nodeRequire = eval("require") as NodeRequire;
+  neonConfig.webSocketConstructor = nodeRequire("ws");
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };

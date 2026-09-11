@@ -1,46 +1,29 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
-import {
-  MANAGED_KEY_NAMES,
-  getMaskedSettings,
-  setOrgKey,
-  type ManagedKey,
-} from "@/lib/settings";
 
 export const runtime = "edge";
 
 /**
- * Admin integration settings API.
+ * Admin integration settings.
  *
- * GET   → managed keys MASKED (last 4 chars only), with whether each is set and
- *         its source (this org's stored value, or the process env fallback).
- * PATCH → encrypts and upserts one or more keys into integration_tokens for the
- *         caller's org.
- *
- * Values are encrypted at rest (AES-256-GCM, see src/lib/crypto.ts) and never
- * returned in full. TODO(phase-1+): gate to org admins via org_members role.
+ * API keys are no longer used: copy generates on the Claude Code subscription
+ * (`claude -p`) and media on the Higgsfield subscription — both via the runner.
+ * This endpoint is kept so the Admin page renders, but stores nothing. (The
+ * old encrypted integration_tokens path used node:crypto, which the edge
+ * runtime can't bundle.)
  */
-
 export async function GET() {
   const { org } = await getContext();
-  const settings = await getMaskedSettings(org.id);
-  return NextResponse.json({ org: org.name, settings });
+  return NextResponse.json({
+    org: org.name,
+    settings: {},
+    note: "No API keys needed — generation runs on your Claude Code + Higgsfield subscriptions.",
+  });
 }
 
-export async function PATCH(request: Request) {
-  const { org } = await getContext();
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-
-  const updates: ManagedKey[] = [];
-  for (const key of MANAGED_KEY_NAMES) {
-    const v = body[key];
-    if (typeof v === "string" && v.trim()) {
-      await setOrgKey(org.id, key, v.trim());
-      updates.push(key);
-    }
-  }
-  if (updates.length === 0) {
-    return NextResponse.json({ error: "No valid keys to update." }, { status: 400 });
-  }
-  return NextResponse.json({ org: org.name, updated: updates });
+export async function PATCH() {
+  return NextResponse.json(
+    { error: "API keys are no longer used — generation runs on subscriptions." },
+    { status: 400 },
+  );
 }
