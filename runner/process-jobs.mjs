@@ -267,7 +267,7 @@ async function claimLead() {
       SELECT id FROM leads
       WHERE status='PENDING' AND intent_status='INTERESTED'
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, org_id, email, raw_body
+    ) RETURNING id, org_id, email, raw_body, source, auto_video
   `);
   return rows[0] || null;
 }
@@ -442,8 +442,16 @@ async function processLead(lead) {
 
   const ctx = { company_name, metro_area, niche, core_offer };
   await enqueueSampleEmail(project.id, actingUser, ctx);
-  await enqueueSampleVideo(project.id, actingUser, ctx);
-  console.log(`[runner] lead ${lead.id} QUALIFIED → project ${project.id}, profile ${profile.id}; samples enqueued.`);
+  // Concept video (~6 credits) is auto-generated for inbound leads, but for a
+  // pitch (auto_video=false) it's left as an explicit, cost-previewed action so
+  // the operator only spends credits on pitches worth rendering.
+  if (lead.auto_video !== false) {
+    await enqueueSampleVideo(project.id, actingUser, ctx);
+  }
+  console.log(
+    `[runner] lead ${lead.id} QUALIFIED → project ${project.id}, profile ${profile.id}; ` +
+      `email enqueued${lead.auto_video === false ? " (pitch: video on-demand)" : " + video enqueued"}.`,
+  );
 }
 
 async function main() {
