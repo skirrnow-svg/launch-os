@@ -285,7 +285,7 @@ async function getIntakeProject(orgId, actingUser) {
   const existing = await prisma.projects.findFirst({ where: { org_id: orgId, slug, deleted_at: null } });
   if (existing) return existing;
   return prisma.projects.create({
-    data: { org_id: orgId, name: "Intake", slug, description: "Inbound lead clarifications", status: "active", created_by: actingUser },
+    data: { org_id: orgId, name: "Intake", slug, description: "Inbound lead clarifications", status: "draft", created_by: actingUser },
   });
 }
 
@@ -416,7 +416,7 @@ async function processLead(lead) {
       name: company_name,
       slug: `${slugify(company_name)}-${Date.now().toString(36)}`,
       description: `Auto-provisioned from qualified lead ${lead.email}`,
-      status: "active",
+      status: "live",
       created_by: actingUser,
     },
   });
