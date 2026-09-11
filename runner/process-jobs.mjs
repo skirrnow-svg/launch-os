@@ -61,16 +61,27 @@ function extractMediaUrl(stdout) {
 /** Atomically claim one queued media asset (safe for overlapping runs). */
 async function claimAsset() {
   const rows = await prisma.$queryRawUnsafe(`
-    UPDATE assets SET status='generating', updated_at=now()
-    WHERE id = (
+    UPDATE assets a SET status='generating', updated_at=now()
+    FROM projects p
+    WHERE a.id = (
       SELECT id FROM assets
       WHERE status='queued' AND type IN ('image','video')
       ORDER BY created_at ASC
       LIMIT 1 FOR UPDATE SKIP LOCKED
-    )
-    RETURNING id, type, prompt
+    ) AND p.id = a.project_id
+    RETURNING a.id, a.type, a.prompt, p.org_id
   `);
   return rows[0] || null;
+}
+
+/** Per-org budget: returns remaining credits, or null for unlimited. */
+async function remainingOrgCredits(orgId) {
+  const org = await prisma.organizations.findUnique({
+    where: { id: orgId },
+    select: { credit_cap: true, credits_used: true },
+  });
+  if (!org || org.credit_cap == null) return null;
+  return Math.max(0, org.credit_cap - Number(org.credits_used ?? 0));
 }
 
 async function processAsset(asset) {
@@ -82,6 +93,11 @@ async function processAsset(asset) {
   const remaining = accountCredits();
   if (Number.isFinite(cost) && remaining != null && cost > remaining) {
     throw new Error(`Not enough credits: need ~${cost}, have ${remaining}.`);
+  }
+  // Per-org budget (multi-tenant fix #1).
+  const orgRemaining = await remainingOrgCredits(asset.org_id);
+  if (orgRemaining != null && Number.isFinite(cost) && cost > orgRemaining) {
+    throw new Error(`Workspace budget: need ~${cost}, ${orgRemaining} left.`);
   }
   if (asset.type === "video" && Number.isFinite(cost) && cost > AUTONOMOUS_CREDIT_CEILING) {
     // Was confirmed by a human at enqueue; log for the audit trail.
@@ -101,6 +117,12 @@ async function processAsset(asset) {
       metadata: { model: jst, creditsUsed: Number.isFinite(cost) ? cost : null },
     },
   });
+  if (Number.isFinite(cost) && cost > 0) {
+    await prisma.organizations.update({
+      where: { id: asset.org_id },
+      data: { credits_used: { increment: cost } },
+    });
+  }
   console.log(`[runner] ready ${asset.id} (${jst}, ~${cost} cr) → ${url}`);
 }
 

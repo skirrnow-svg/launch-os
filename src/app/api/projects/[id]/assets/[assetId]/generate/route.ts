@@ -8,8 +8,9 @@ import {
   modelFor,
   type HiggsfieldKind,
 } from "@/lib/higgsfield";
-import { isConfirmationRequired } from "@/lib/errors";
+import { isConfirmationRequired, isBudgetExceeded } from "@/lib/errors";
 import { generationMode, staticCreditEstimate, triggerRunner } from "@/lib/jobs";
+import { assertOrgBudget, recordOrgSpend } from "@/lib/credits";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Ctx = { params: { id: string; assetId: string } };
@@ -60,6 +61,13 @@ export async function POST(request: Request, { params }: Ctx) {
         estimate: "approximate",
       });
     }
+    try {
+      await assertOrgBudget(org.id, staticCreditEstimate(kind));
+    } catch (e) {
+      if (isBudgetExceeded(e)) {
+        return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });
+      }
+    }
     const queued = await prisma.assets.update({
       where: { id: asset.id },
       data: { status: "queued", error_message: null },
@@ -95,8 +103,18 @@ export async function POST(request: Request, { params }: Ctx) {
 
   // Confirmed spend.
   try {
+    // Per-org budget gate before any spend.
+    try {
+      await assertOrgBudget(org.id, await estimateCost(kind, prompt));
+    } catch (e) {
+      if (isBudgetExceeded(e)) {
+        return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });
+      }
+      throw e;
+    }
     await prisma.assets.update({ where: { id: asset.id }, data: { status: "generating", error_message: null } });
     const result = await generate({ orgId: org.id, kind, prompt, confirmed: true });
+    await recordOrgSpend(org.id, result.creditsUsed);
     const updated = await prisma.assets.update({
       where: { id: asset.id },
       data: {

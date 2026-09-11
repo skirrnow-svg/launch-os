@@ -260,6 +260,8 @@ model organizations {
   updated_at              DateTime?            @default(now()) @db.Timestamp(6)
   deleted_at              DateTime?            @db.Timestamp(6)
   clerk_org_id            String?              @unique
+  credit_cap              Int?
+  credits_used            Decimal              @default(0) @db.Decimal
   api_usage               api_usage[]
   audit_logs              audit_logs[]
   contacts                contacts[]

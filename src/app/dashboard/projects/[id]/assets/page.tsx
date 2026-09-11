@@ -103,6 +103,8 @@ export default function ProjectAssetsPage() {
       } else if (gen.status === "queued") {
         setNotice("Queued — the runner is generating this. Refresh in a moment to see the result.");
         await load();
+      } else if (gen.status === "budget-exceeded") {
+        setNotice(gen.message || "This workspace is out of generation credits.");
       } else {
         setNotice(gen.message || "Generation did not complete.");
       }

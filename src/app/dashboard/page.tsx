@@ -3,12 +3,14 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
+import { getOrgBudget } from "@/lib/credits";
 
 export default async function DashboardHome() {
   const { user, org } = await getContext();
   const projectCount = await prisma.projects.count({
     where: { org_id: org.id, deleted_at: null },
   });
+  const budget = await getOrgBudget(org.id);
   // First run: no projects and the user hasn't dismissed onboarding → run the wizard.
   if (projectCount === 0 && cookies().get("lo_onboarded")?.value !== "1") {
     redirect("/dashboard/onboarding");
@@ -32,6 +34,16 @@ export default async function DashboardHome() {
           <div className="font-semibold text-indigo-600">Manage projects →</div>
           <div className="text-sm text-slate-500 mt-1">Create and organize launches</div>
         </Link>
+        <div className="rounded-2xl border border-slate-200 bg-white p-5">
+          <div className="text-3xl font-extrabold tabular-nums">
+            {budget.cap == null ? "∞" : budget.remaining}
+          </div>
+          <div className="text-sm text-slate-500 mt-1">
+            {budget.cap == null
+              ? "Generation credits (no cap)"
+              : `Credits left of ${budget.cap}`}
+          </div>
+        </div>
       </div>
     </div>
   );
