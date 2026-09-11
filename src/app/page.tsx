@@ -1,6 +1,9 @@
 import Link from "next/link";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
+import { BILLING_TIERS } from "@/lib/billing/plans";
+
+const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 
 const STEPS = [
@@ -28,6 +31,10 @@ const STEPS = [
 
 const FEATURES = [
   {
+    title: "Instant pitch generator",
+    body: "Paste a prospect and get a qualified, verified, legally-cleared sample ad in minutes — the fastest way to walk into a pitch already holding the creative.",
+  },
+  {
     title: "Inbound lead triage",
     body: "Keyword intent classification routes every reply — interested, question, or unsubscribe — the moment it arrives.",
   },
@@ -53,33 +60,18 @@ const FEATURES = [
   },
 ];
 
-const PRICING = [
-  {
-    name: "Starter",
-    price: "$0",
-    tagline: "Kick the tires",
-    features: ["1 workspace", "Inbound lead triage", "AI email & social copy", "Manual sample generation"],
-    cta: "Start free",
-    highlight: false,
-  },
-  {
-    name: "Studio",
-    price: "$49",
-    period: "/mo",
-    tagline: "For solo operators",
-    features: ["5 workspaces", "Autonomous qualification", "Concept video samples", "Per-workspace credit caps", "1-click approve & deliver"],
-    cta: "Start Studio",
-    highlight: true,
-  },
-  {
-    name: "Agency",
-    price: "Let's talk",
-    tagline: "For teams & volume",
-    features: ["Unlimited workspaces", "Fair-scheduling across tenants", "Priority generation", "Custom guardrails", "Onboarding support"],
-    cta: "Contact us",
-    highlight: false,
-  },
-];
+// Pricing is derived from the single billing catalog (src/lib/billing/plans.ts),
+// so the marketing page and the in-app billing screen never drift. Amounts are
+// in INR (₹).
+const PRICING = BILLING_TIERS.map((t, i) => ({
+  name: t.name,
+  price: inr(t.priceInr),
+  period: "/mo",
+  tagline: t.tagline,
+  features: [`${t.creditsPerMonth} credits / month`, ...t.features],
+  cta: `Choose ${t.name}`,
+  highlight: i === 1, // Growth = most popular
+}));
 
 const FAQ = [
   {
@@ -123,7 +115,7 @@ export default function HomePage() {
             href="/get-started"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            Get started free
+            Get started
           </Link>
           <Link
             href="/#how"
@@ -133,7 +125,7 @@ export default function HomePage() {
           </Link>
         </div>
         <p className="mt-4 text-sm text-slate-400">
-          No API keys · No credit card to start · Human approval before anything ships
+          No API keys · Runs on your own subscriptions · Human approval before anything ships
         </p>
       </section>
 
@@ -144,7 +136,7 @@ export default function HomePage() {
             ["Seconds", "to triage a reply"],
             ["100%", "leads verified before outreach"],
             ["1 click", "to approve & deliver"],
-            ["$0", "in AI API fees"],
+            ["₹0", "in AI API fees"],
           ].map(([big, small]) => (
             <div key={small}>
               <div className="text-2xl font-extrabold text-slate-900">{big}</div>
@@ -189,9 +181,10 @@ export default function HomePage() {
 
       {/* Pricing */}
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Simple pricing</h2>
+        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Simple pricing, in ₹</h2>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Start free. Generation runs on your own subscriptions, so your only variable cost is media credits.
+          Generation runs on your own Claude &amp; Higgsfield subscriptions — no metered API bills. Each plan sets your
+          monthly media-credit allowance. Billed monthly in Indian Rupees.
         </p>
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
           {PRICING.map((p) => (
@@ -261,7 +254,7 @@ export default function HomePage() {
             href="/get-started"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            Get started free
+            Get started
           </Link>
         </div>
       </section>
