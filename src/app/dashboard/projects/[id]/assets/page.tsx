@@ -74,7 +74,7 @@ export default function ProjectAssetsPage() {
       });
       const price = await priceRes.json();
       if (price.status === "not-configured") {
-        setNotice(price.message || "Higgsfield is not configured on the host.");
+        setNotice(price.message || "Media generation is not configured on the host.");
         return;
       }
       if (price.status !== "confirmation-required") {
@@ -83,7 +83,7 @@ export default function ProjectAssetsPage() {
       }
       // 2) explicit human confirmation of the credit cost
       const ok = window.confirm(
-        `This will generate media via Higgsfield (${price.model}) and cost ~${price.estimatedCredits} credits.\n\nProceed?`,
+        `This will generate media (${price.model}) and cost ~${price.estimatedCredits} credits.\n\nProceed?`,
       );
       if (!ok) {
         setNotice("Generation cancelled — no credits spent.");
@@ -152,8 +152,8 @@ export default function ProjectAssetsPage() {
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Assets</h1>
       <p className="text-slate-500 mt-1">
-        AI-generated marketing assets for this launch. Copy is written by Claude and media by
-        Higgsfield — both via your Claude Code + Higgsfield subscriptions, no API keys needed.
+        AI-generated marketing assets for this launch — copy and media, generated on
+        subscriptions you already have, no API keys needed.
         Image/video generation always shows its credit cost and asks before spending.
       </p>
 

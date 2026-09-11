@@ -9,7 +9,7 @@ import { useState } from "react";
  * Describe a prospect → the same qualify → verify → legal → sample-copy path
  * runs on the current org, producing a ready ad copy sample. The concept video
  * is an explicit next step (cost-previewed in the project's assets), so a pitch
- * never auto-spends Higgsfield credits.
+ * never auto-spends media credits.
  */
 type Lead = {
   id: string;

@@ -92,7 +92,7 @@ export default function SocialPostDetailPage() {
     try {
       const data = await patch({ generate: true, brief, platforms });
       if (data.generation === "queued") {
-        setNotice("Queued — the runner is writing your copy with Claude. Refresh in a moment to see it.");
+        setNotice("Queued — the runner is writing your copy. Refresh in a moment to see it.");
       } else {
         setNotice("Requested.");
       }
@@ -135,7 +135,7 @@ export default function SocialPostDetailPage() {
           disabled={generating}
           className="justify-self-start rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {generating ? "Writing…" : "Write copy with Claude"}
+          {generating ? "Writing…" : "Write copy with AI"}
         </button>
       </div>
 

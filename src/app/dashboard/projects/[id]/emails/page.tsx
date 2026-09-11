@@ -71,7 +71,7 @@ export default function ProjectEmailsPage() {
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Email campaigns</h1>
       <p className="text-slate-500 mt-1">
-        Create a campaign, then click it to write the copy (with Claude) and edit the body.
+        Create a campaign, then click it to write the copy with AI and edit the body.
         Sending via Resend comes in Phase 3.
       </p>
 

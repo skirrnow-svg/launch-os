@@ -44,11 +44,11 @@ const FEATURES = [
   },
   {
     title: "AI copy that sounds human",
-    body: "Cold-outreach emails and social posts written by Claude on your own subscription — no metered API keys.",
+    body: "Cold-outreach emails and social posts AI-written on your own subscription — no metered API keys.",
   },
   {
     title: "Concept video & images",
-    body: "Short-form concept videos and images via Higgsfield, generated in a low-cost draft so you can preview the idea fast.",
+    body: "Short-form concept videos and images, generated in a low-cost draft so you can preview the idea fast.",
   },
   {
     title: "Multi-tenant workspaces",
@@ -76,7 +76,7 @@ const PRICING = BILLING_TIERS.map((t, i) => ({
 const FAQ = [
   {
     q: "Do I need to pay for AI API keys?",
-    a: "No. SkirrNow runs generation on your Claude and Higgsfield subscriptions via a background worker — there are no per-token API bills.",
+    a: "No. SkirrNow runs generation through a background worker on subscriptions you already have — there are no per-token API bills.",
   },
   {
     q: "How does the credit guardrail work?",
@@ -210,7 +210,7 @@ export default function HomePage() {
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
         <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Simple pricing, in ₹</h2>
         <p className="mt-3 max-w-2xl text-slate-600">
-          Generation runs on your own Claude &amp; Higgsfield subscriptions — no metered API bills. Each plan sets your
+          Generation runs on the subscriptions you already have — no metered API bills. Each plan sets your
           monthly media-credit allowance. Billed monthly in Indian Rupees.
         </p>
         <div className="mt-10 grid gap-6 lg:grid-cols-3">

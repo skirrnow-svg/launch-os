@@ -16,7 +16,7 @@ export async function GET() {
   return NextResponse.json({
     org: org.name,
     settings: {},
-    note: "No API keys needed — generation runs on your Claude Code + Higgsfield subscriptions.",
+    note: "No API keys needed — generation runs on the subscriptions you already have.",
   });
 }
 

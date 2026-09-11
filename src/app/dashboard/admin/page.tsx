@@ -15,8 +15,8 @@ import { FormEvent, useEffect, useState } from "react";
 type KeyField = { name: string; label: string; placeholder: string; help: string };
 
 const FIELDS: KeyField[] = [
-  { name: "CLAUDE_API_KEY", label: "Claude API key", placeholder: "sk-ant-…", help: "AI orchestration (asset briefs, copy, prompts)." },
-  { name: "HIGGSFIELD_API_KEY", label: "Higgsfield API key", placeholder: "…", help: "Image/video generation. Budget-capped — see Higgsfield guardrails." },
+  { name: "CLAUDE_API_KEY", label: "AI copy key", placeholder: "…", help: "AI orchestration (asset briefs, copy, prompts)." },
+  { name: "HIGGSFIELD_API_KEY", label: "Media generation key", placeholder: "…", help: "Image/video generation. Budget-capped — see generation guardrails." },
 ];
 
 type Setting = { set: boolean; masked: string | null; source: "org" | "env" | null };

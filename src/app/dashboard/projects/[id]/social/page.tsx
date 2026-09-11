@@ -76,7 +76,7 @@ export default function ProjectSocialPage() {
       </Link>
       <h1 className="text-2xl font-extrabold tracking-tight mt-3">Social posts</h1>
       <p className="text-slate-500 mt-1">
-        Create a post, then click it to write the copy (with Claude), pick platforms and hashtags.
+        Create a post, then click it to write the copy with AI, pick platforms and hashtags.
         Scheduling via Buffer comes in Phase 2.
       </p>
 
