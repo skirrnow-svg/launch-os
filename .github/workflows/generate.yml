@@ -1,0 +1,57 @@
+name: Generation runner
+
+# Fulfils queued generation jobs on a real Linux VM (Cloudflare Pages can't run
+# the CLIs). Woken immediately by the web app via repository_dispatch, with a
+# cron safety net, plus a manual trigger.
+on:
+  repository_dispatch:
+    types: [generate]
+  schedule:
+    - cron: "*/10 * * * *" # safety net if a dispatch is missed
+  workflow_dispatch: {}
+
+# Don't stack runs or cancel one mid-generation.
+concurrency:
+  group: generation-runner
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Higgsfield CLI
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          echo "/usr/local/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Higgsfield auth
+        env:
+          HIGGSFIELD_CREDENTIALS: ${{ secrets.HIGGSFIELD_CREDENTIALS }}
+          HIGGSFIELD_CONFIG: ${{ secrets.HIGGSFIELD_CONFIG }}
+        run: |
+          mkdir -p "$HOME/.config/higgsfield"
+          printf '%s' "$HIGGSFIELD_CREDENTIALS" > "$HOME/.config/higgsfield/credentials.json"
+          printf '%s' "$HIGGSFIELD_CONFIG" > "$HOME/.config/higgsfield/config.json"
+          higgsfield account status || echo "auth check failed — refresh HIGGSFIELD_CREDENTIALS"
+
+      - name: Process queued jobs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # For the planned copy runner (email/social via claude -p):
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+        run: node runner/process-jobs.mjs

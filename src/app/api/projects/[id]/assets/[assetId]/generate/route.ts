@@ -9,6 +9,7 @@ import {
   type HiggsfieldKind,
 } from "@/lib/higgsfield";
 import { isConfirmationRequired } from "@/lib/errors";
+import { generationMode, staticCreditEstimate, triggerRunner } from "@/lib/jobs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Ctx = { params: { id: string; assetId: string } };
@@ -44,16 +45,36 @@ export async function POST(request: Request, { params }: Ctx) {
     return NextResponse.json({ error: "This asset has no prompt yet." }, { status: 400 });
   }
 
+  const kind = asset.type as HiggsfieldKind;
+  const body = (await request.json().catch(() => ({}))) as { confirmed?: unknown };
+  const confirmed = body.confirmed === true;
+
+  // Queue mode (Cloudflare Pages): no CLI here. Show a CLI-free estimate, then
+  // on confirmation mark the row `queued` and wake the Actions runner.
+  if (generationMode() === "queue") {
+    if (!confirmed) {
+      return NextResponse.json({
+        status: "confirmation-required",
+        estimatedCredits: staticCreditEstimate(kind),
+        model: modelFor(kind),
+        estimate: "approximate",
+      });
+    }
+    const queued = await prisma.assets.update({
+      where: { id: asset.id },
+      data: { status: "queued", error_message: null },
+    });
+    await triggerRunner("generate");
+    return NextResponse.json({ status: "queued", asset: queued });
+  }
+
+  // Inline mode (local / the runner itself): the CLI is present.
   if (!(await higgsfieldConfigured())) {
     return NextResponse.json(
       { status: "not-configured", message: "Higgsfield CLI is not installed or authenticated on the host." },
       { status: 200 },
     );
   }
-
-  const kind = asset.type as HiggsfieldKind;
-  const body = (await request.json().catch(() => ({}))) as { confirmed?: unknown };
-  const confirmed = body.confirmed === true;
 
   // Price-only path: no spend, just return the estimate to confirm against.
   if (!confirmed) {

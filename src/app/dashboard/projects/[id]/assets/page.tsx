@@ -100,6 +100,9 @@ export default function ProjectAssetsPage() {
       if (gen.status === "ready") {
         setNotice(`Generated (${gen.model}, ${gen.creditsUsed} credits).`);
         await load();
+      } else if (gen.status === "queued") {
+        setNotice("Queued — the runner is generating this. Refresh in a moment to see the result.");
+        await load();
       } else {
         setNotice(gen.message || "Generation did not complete.");
       }
