@@ -1,29 +1,20 @@
 import type { Metadata } from "next";
-import { Fraunces, Libre_Franklin, IBM_Plex_Mono } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
+import { GeistSans } from "geist/font/sans";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 /**
- * Root layout. Loads the Editorial Press type system (self-hosted via next/font,
- * so there's no layout shift and no runtime request to Google): Fraunces for
- * display, Libre Franklin for body, IBM Plex Mono for labels/data. Clerk context
- * lives in the authed layouts (dashboard, sign-in, sign-up) that need it.
+ * Root layout. Loads the "Dark Studio" type system (all self-hosted): Space
+ * Grotesk for display headings (next/font), Geist for body + Geist Mono for
+ * labels/data (Vercel's `geist` package). Geist exposes --font-geist-sans /
+ * --font-geist-mono; Space Grotesk exposes --font-display.
+ * Clerk context lives in the authed layouts (dashboard, sign-in, sign-up).
  */
-const fraunces = Fraunces({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800", "900"],
-  variable: "--font-fraunces",
-  display: "swap",
-});
-const franklin = Libre_Franklin({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  variable: "--font-franklin",
-  display: "swap",
-});
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-plex-mono",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -35,7 +26,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${franklin.variable} ${plexMono.variable}`}>
+    <html lang="en" className={`${spaceGrotesk.variable} ${GeistSans.variable} ${GeistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

@@ -1,64 +1,65 @@
 import type { Config } from "tailwindcss";
 
 /**
- * SkirrNow — "Editorial Press" design system.
+ * SkirrNow — "Dark Studio" design system.
  *
- * A premium, agency-grade look: Fraunces (serif display) + Libre Franklin
- * (body) + IBM Plex Mono (labels), on a warm paper ground with a plum-black ink
- * and a muted-forest accent. The neutral `slate` scale is remapped to a warm
- * greige and `white` to a warm near-white, so the existing utility classes
- * (bg-white, text-slate-900, border-slate-200 …) inherit the new palette
- * app-wide without touching every file.
+ * Dark-first: a near-black canvas, off-white text, a single electric-lime accent
+ * used sparingly. The neutral `slate` scale is INVERTED (slate-50 = darkest
+ * canvas … slate-900 = off-white) and `white` is remapped to a raised dark
+ * surface — so existing utilities flip to dark without touching every file:
+ *   • bg-slate-50  → page canvas          • bg-white     → raised card surface
+ *   • text-slate-900 → off-white heading  • text-white   → dark text (reads on lime)
+ *   • border-slate-200 → subtle dark rule • bg-accent    → electric lime
+ * Legacy indigo/blue utilities map onto the accent too.
+ * Source of truth: design/tokens/*.md.
  */
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        // Warm near-white for cards/surfaces (was pure #fff).
-        white: "#FCFBF7",
-        // Warm greige neutral, plum-tinted — replaces cool slate app-wide.
+        // Raised dark surface — also becomes button text on the light accent.
+        white: "#17161D",
+        // Inverted neutral scale (dark → light).
         slate: {
-          50: "#F4F1EA", // paper / page ground
-          100: "#EBE6DC",
-          200: "#DED8CB", // hairline borders
-          300: "#CAC2B1",
-          400: "#A79E8C", // muted / placeholder
-          500: "#837A69", // secondary text
-          600: "#5E5647", // body text
-          700: "#443E33",
-          800: "#2B2620",
-          900: "#1E1922", // ink / headings
+          50: "#0E0D12", // canvas / page ground
+          100: "#16151C", // subtle raised
+          200: "#26242F", // hairline borders
+          300: "#35323F",
+          400: "#6E6A7A", // muted / placeholder
+          500: "#8B8798", // secondary text
+          600: "#A7A3B3", // body text
+          700: "#C4C1CE",
+          800: "#DAD8E1",
+          900: "#ECEAF1", // primary text / headings
         },
-        // Muted forest accent — CTAs, links.
+        // Electric lime accent — CTAs, links, highlights (use sparingly).
         accent: {
-          DEFAULT: "#3A5648",
-          hover: "#2C4437",
+          DEFAULT: "#BEF264",
+          hover: "#A8E63C",
         },
-        // Legacy indigo/blue utilities are remapped onto the forest accent so
-        // existing `indigo-*` / `blue-50` classes inherit the palette app-wide.
+        // Legacy indigo/blue remapped onto the accent.
         indigo: {
-          50: "#E9EFEB",
-          100: "#DCE6DF",
-          200: "#C6D3CB",
-          300: "#A9BCB0",
-          400: "#5E7A6B",
-          500: "#496856",
-          600: "#3A5648",
-          700: "#2C4437",
+          50: "#1C1B24",
+          100: "#232230",
+          200: "#2F2E3C",
+          300: "#3A3948",
+          400: "#9BC24E",
+          500: "#AEDE55",
+          600: "#BEF264",
+          700: "#A8E63C",
         },
-        blue: { 50: "#E7EDE8" },
-        success: "#3A7D5B",
-        danger: "#B23A2E",
-        warning: "#B5771F",
+        blue: { 50: "#1C1B24" },
+        success: "#4ADE80",
+        danger: "#F87171",
+        warning: "#FBBF24",
       },
       fontFamily: {
-        serif: ["var(--font-fraunces)", "Georgia", "Cambria", "serif"],
-        sans: ["var(--font-franklin)", "system-ui", "-apple-system", "sans-serif"],
-        mono: ["var(--font-plex-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
+        display: ["var(--font-display)", "Space Grotesk", "system-ui", "sans-serif"],
+        sans: ["var(--font-geist-sans)", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["var(--font-geist-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       borderRadius: {
-        // Editorial restraint: crisp corners.
         DEFAULT: "6px",
       },
     },

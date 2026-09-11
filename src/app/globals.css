@@ -9,13 +9,13 @@
  */
 
 :root {
-  --background: #f4f1ea; /* warm paper */
-  --foreground: #1e1922; /* plum-black ink */
-  --accent: #3a5648; /* muted forest — focus ring / accent */
+  --background: #0e0d12; /* near-black canvas */
+  --foreground: #eceaf1; /* off-white */
+  --accent: #bef264; /* electric lime — focus ring / accent */
 }
 
 html {
-  color-scheme: light;
+  color-scheme: dark;
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
 }
@@ -84,22 +84,21 @@ p {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-franklin), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* Editorial Press: Fraunces sets every display heading. */
+/* Dark Studio: Space Grotesk sets every display heading. */
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-fraunces), Georgia, Cambria, serif;
-  font-optical-sizing: auto;
+  font-family: var(--font-display), "Space Grotesk", system-ui, sans-serif;
   font-weight: 600;
-  letter-spacing: -0.012em;
+  letter-spacing: -0.02em;
 }
 
 a {

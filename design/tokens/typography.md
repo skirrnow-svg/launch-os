@@ -4,9 +4,9 @@ Source of truth for type. A small, consistent scale with **named roles** — nev
 invent ad-hoc font sizes; map to a role. Self-hosted via `next/font` (no layout shift).
 
 ## Families
-- **Display** — `Fraunces` (serif, optical-sized). All headings; the editorial voice.
-- **Body** — `Libre Franklin` (humanist sans). Running text, UI.
-- **Mono** — `IBM Plex Mono`. Eyebrows, labels, data, code.
+- **Display** — `Space Grotesk` (tight geometric grotesque). All headings; the voice.
+- **Body** — `Geist` (Vercel's clean humanist sans). Running text, UI.
+- **Mono** — `Geist Mono`. Eyebrows, labels, data, code.
 
 ## Scale (roles)
 
