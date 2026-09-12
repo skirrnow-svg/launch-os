@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getContext } from "@/lib/auth";
+import { requireAdmin } from "@/lib/auth";
 
 
 /**
@@ -12,12 +12,19 @@ import { getContext } from "@/lib/auth";
  * runtime can't bundle.)
  */
 export async function GET() {
-  const { org } = await getContext();
-  return NextResponse.json({
-    org: org.name,
-    settings: {},
-    note: "No API keys needed — generation runs on the subscriptions you already have.",
-  });
+  try {
+    const { org } = await requireAdmin();
+    return NextResponse.json({
+      org: org.name,
+      settings: {},
+      note: "No API keys needed — generation runs on the subscriptions you already have.",
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "FORBIDDEN") {
+      return NextResponse.json({ error: "Admins only." }, { status: 403 });
+    }
+    throw e;
+  }
 }
 
 export async function PATCH() {

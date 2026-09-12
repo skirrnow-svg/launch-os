@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getContext } from "@/lib/auth";
+import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrgBudget } from "@/lib/credits";
 
@@ -12,13 +12,22 @@ import { getOrgBudget } from "@/lib/credits";
  */
 
 export async function GET() {
-  const { org } = await getContext();
+  const { user, org } = await getContext();
   const [projectCount, budget] = await Promise.all([
     prisma.projects.count({ where: { org_id: org.id, deleted_at: null } }),
     getOrgBudget(org.id),
   ]);
   return NextResponse.json({
-    org: { id: org.id, name: org.name, slug: org.slug },
+    org: {
+      id: org.id,
+      name: org.name,
+      slug: org.slug,
+      accountType: org.account_type,
+      brandName: org.brand_name,
+      brandColor: org.brand_color,
+      logoUrl: org.logo_url,
+    },
+    isAdmin: isPlatformAdmin(user.email),
     projectCount,
     budget,
   });

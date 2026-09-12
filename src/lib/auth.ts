@@ -12,6 +12,23 @@ import { prisma } from "./db";
  * `org_members` membership/roles.
  */
 
+/**
+ * Platform admins — an email allowlist (ADMIN_EMAILS, comma-separated) plus the
+ * owner + demo admin as built-in defaults so admin gating works even before the
+ * env var is set. Admins reach the admin console; everyone else is a tenant.
+ */
+const DEFAULT_ADMIN_EMAILS = ["dextor@idocs.in", "admin+clerk_test@skirrnow.app"];
+export function adminEmails(): string[] {
+  const fromEnv = (process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+  return Array.from(new Set([...DEFAULT_ADMIN_EMAILS.map((e) => e.toLowerCase()), ...fromEnv]));
+}
+export function isPlatformAdmin(email?: string | null): boolean {
+  return !!email && adminEmails().includes(email.toLowerCase());
+}
+
 /** The current Clerk userId, or null if signed out. */
 export async function getUserId(): Promise<string | null> {
   const { userId } = await auth();
@@ -108,6 +125,13 @@ export async function getContext() {
 /** The current user's personal organization (created if missing). */
 export async function getCurrentOrg() {
   return (await getContext()).org;
+}
+
+/** Throw FORBIDDEN unless the current user is a platform admin. Returns context. */
+export async function requireAdmin() {
+  const ctx = await getContext();
+  if (!isPlatformAdmin(ctx.user.email)) throw new Error("FORBIDDEN");
+  return ctx;
 }
 
 export { currentUser };

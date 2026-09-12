@@ -250,6 +250,9 @@ model organizations {
   slug                    String               @unique
   logo_url                String?
   plan                    String               @default("free")
+  account_type            String               @default("solo")
+  brand_name              String?
+  brand_color             String?
   stripe_customer_id      String?
   stripe_subscription_id  String?
   billing_email           String?

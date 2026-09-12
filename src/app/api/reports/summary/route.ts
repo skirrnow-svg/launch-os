@@ -53,7 +53,7 @@ export const GET = withErrors<unknown>(async () => {
       }),
       prisma.organizations.findUnique({
         where: { id: org.id },
-        select: { name: true, credit_cap: true, credits_used: true },
+        select: { name: true, credit_cap: true, credits_used: true, account_type: true, brand_name: true, brand_color: true, logo_url: true },
       }),
     ]);
 
@@ -64,8 +64,16 @@ export const GET = withErrors<unknown>(async () => {
   const cap = orgRow?.credit_cap ?? null;
   const used = Number(orgRow?.credits_used ?? 0);
 
+  const isAgency = orgRow?.account_type === "agency";
   return NextResponse.json({
-    org: { name: orgRow?.name ?? org.name ?? "Workspace" },
+    org: {
+      name: orgRow?.name ?? org.name ?? "Workspace",
+      // White-label: agency orgs present their own brand on this (shareable) report.
+      brandName: isAgency ? orgRow?.brand_name ?? null : null,
+      brandColor: isAgency ? orgRow?.brand_color ?? null : null,
+      logoUrl: isAgency ? orgRow?.logo_url ?? null : null,
+      whiteLabel: isAgency,
+    },
     leads: {
       total: totalLeads,
       byStatus: leads,

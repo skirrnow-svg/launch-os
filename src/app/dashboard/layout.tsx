@@ -1,6 +1,6 @@
-import Link from "next/link";
-import { ClerkProvider, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+import { ClerkProvider, UserButton } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerkAppearance";
+import DashboardNav from "@/components/dashboard/DashboardNav";
 
 
 /**
@@ -14,43 +14,11 @@ import { clerkAppearance } from "@/lib/clerkAppearance";
  * itself needs no DB round-trips.
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const nav = [
-    { href: "/dashboard", label: "Dashboard" },
-    { href: "/dashboard/projects", label: "Projects" },
-    { href: "/dashboard/pitch", label: "Instant Pitch" },
-    { href: "/dashboard/audience", label: "Audience" },
-    { href: "/dashboard/leads", label: "Leads" },
-    { href: "/dashboard/reports", label: "Reports" },
-    { href: "/dashboard/billing", label: "Billing" },
-    { href: "/dashboard/admin", label: "Admin" },
-  ];
-
   return (
     <ClerkProvider appearance={clerkAppearance}>
       <div className="min-h-screen grid grid-cols-[220px_1fr] bg-slate-50 text-slate-900">
         <aside className="border-r border-slate-200 bg-white flex flex-col">
-          <div className="px-5 py-5 border-b border-slate-200">
-            <div className="font-extrabold tracking-tight text-lg">Launch OS</div>
-            <div className="mt-2">
-              <OrganizationSwitcher
-                hidePersonal={false}
-                afterCreateOrganizationUrl="/dashboard"
-                afterSelectOrganizationUrl="/dashboard"
-                afterSelectPersonalUrl="/dashboard"
-              />
-            </div>
-          </div>
-          <nav className="flex-1 p-3 flex flex-col gap-1">
-            {nav.map((n) => (
-              <Link
-                key={n.href}
-                href={n.href}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-900"
-              >
-                {n.label}
-              </Link>
-            ))}
-          </nav>
+          <DashboardNav />
           <div className="p-4 border-t border-slate-200 flex items-center gap-3">
             <UserButton afterSignOutUrl="/" />
             <span className="text-xs text-slate-500">Account</span>

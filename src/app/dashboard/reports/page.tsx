@@ -10,7 +10,7 @@ import { useEffect, useState } from "react";
  * body so an agency can show it to a client.
  */
 type Summary = {
-  org: { name: string };
+  org: { name: string; brandName?: string | null; brandColor?: string | null; logoUrl?: string | null; whiteLabel?: boolean };
   leads: { total: number; byStatus: Record<string, number>; bySource: Record<string, number>; qualifiedRate: number };
   campaigns: Record<string, number>;
   posts: Record<string, number>;
@@ -60,9 +60,17 @@ export default function ReportsPage() {
   return (
     <div className="max-w-5xl">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <p className="font-mono text-xs uppercase tracking-widest text-accent">Executive report</p>
-          <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">{data.org.name}</h1>
+        <div className="flex items-center gap-4">
+          {data.org.logoUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={data.org.logoUrl} alt={data.org.brandName || data.org.name} className="max-h-11 w-auto" />
+          )}
+          <div>
+            <p className="font-mono text-xs uppercase tracking-widest" style={data.org.brandColor ? { color: data.org.brandColor } : undefined}>
+              Executive report{data.org.whiteLabel ? "" : ""}
+            </p>
+            <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">{data.org.brandName || data.org.name}</h1>
+          </div>
         </div>
         <p className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
           As of {new Date(data.generatedAt).toLocaleString("en-IN")}
