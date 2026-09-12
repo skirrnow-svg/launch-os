@@ -326,7 +326,67 @@ async function enqueueSampleVideo(projectId, actingUser, ctx) {
   });
 }
 
+/** Coerce anything into an array of trimmed non-empty strings, capped. */
+function strList(v, cap) {
+  if (!Array.isArray(v)) return [];
+  const out = v.filter((x) => typeof x === "string").map((x) => x.trim()).filter(Boolean);
+  return cap ? out.slice(0, cap) : out;
+}
+
+/**
+ * Free Product-to-Ad generator: the lead's raw_body already holds the scraped
+ * website content (the web tier fetched it). We produce 3 viral hooks + an AI
+ * marketing audit — TEXT ONLY, 0 credits — and store it on the lead's
+ * verification JSON, which the public report page polls. The animated teaser is
+ * intentionally NOT rendered here: it stays behind the phone-verified gate so
+ * the free path never auto-spends Higgsfield credits (see docs/VISION.md).
+ */
+async function processFreeReport(lead) {
+  const out = claude(
+    lead.raw_body,
+    'You are a senior direct-response marketing strategist auditing a business from its website content. ' +
+      'Return ONLY JSON with this exact shape: ' +
+      '{"business":{"name":string,"what":string},' +
+      '"hooks":[string,string,string],' +
+      '"audit":{"headline":string,"summary":string,"strengths":string[],"gaps":string[],"recommendations":string[]}}. ' +
+      'hooks = 3 scroll-stopping, high-converting ad hooks (<=90 chars each, no emojis, no quotes). ' +
+      'audit.summary = 2-3 sentences. strengths/gaps/recommendations = 2-4 short, specific, actionable bullets each. ' +
+      'Be concrete and grounded in the actual content; never fabricate metrics, guarantees, or pricing. No prose outside the JSON.',
+  );
+  const parsed = parseJsonish(out) || {};
+  const biz = parsed.business && typeof parsed.business === "object" ? parsed.business : {};
+  const audit = parsed.audit && typeof parsed.audit === "object" ? parsed.audit : {};
+
+  const free_report = {
+    business: { name: str(biz.name), what: str(biz.what) },
+    hooks: strList(parsed.hooks, 3),
+    audit: {
+      headline: str(audit.headline),
+      summary: str(audit.summary),
+      strengths: strList(audit.strengths, 4),
+      gaps: strList(audit.gaps, 4),
+      recommendations: strList(audit.recommendations, 4),
+    },
+  };
+
+  if (free_report.hooks.length === 0 && !free_report.audit.summary) {
+    throw new Error("Audit generation returned nothing usable.");
+  }
+
+  await prisma.lead.update({
+    where: { id: lead.id },
+    data: { status: "QUALIFIED", verification: { free_report, audited_at: new Date().toISOString() } },
+  });
+  console.log(`[runner] free-generator lead ${lead.id} report ready (${free_report.hooks.length} hooks).`);
+}
+
 async function processLead(lead) {
+  // Free Product-to-Ad generator leads take a separate, copy-only path.
+  if (lead.source === "free-generator") {
+    await processFreeReport(lead);
+    return;
+  }
+
   // 1) Extraction (claude -p → structured JSON).
   const ex = parseJsonish(
     claude(

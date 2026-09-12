@@ -164,7 +164,7 @@ export default function HomePage() {
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href="/get-started"
+            href="/free"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
             Get your free AI Marketing Audit
@@ -198,7 +198,7 @@ export default function HomePage() {
                 plans render the full-resolution, unwatermarked video and the automated email sequence.
               </p>
               <Link
-                href="/get-started"
+                href="/free"
                 className="mt-7 inline-flex rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
               >
                 Generate my free ad →
@@ -395,7 +395,7 @@ export default function HomePage() {
             </p>
           </div>
           <Link
-            href="/get-started"
+            href="/free"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
             Get your free audit
