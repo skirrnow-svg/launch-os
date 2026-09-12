@@ -5,64 +5,112 @@ import { BILLING_TIERS } from "@/lib/billing/plans";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
-
-const STEPS = [
+// The five specialist agents, described in plain operator language rather than
+// framework jargon. This is the "hub-and-spoke" ecosystem: an Orchestrator that
+// delegates to four specialists running a Perceive → Reason → Act loop.
+const AGENTS = [
   {
     n: "01",
-    title: "A prospect replies",
-    body: "An inbound email — or a form on your own site — lands in SkirrNow. We read the intent in seconds.",
+    name: "Orchestrator",
+    role: "Reads the goal, runs the crew",
+    body: "Interprets a high-level objective, holds the context across every specialist, and delegates the work — so you brief once, not five times.",
   },
   {
     n: "02",
-    title: "Auto-qualify & verify",
-    body: "We extract the business, validate the phone and metro, and run a compliance check against deceptive-claim risk — before you lift a finger.",
+    name: "Audience & Analytics",
+    role: "Knows who to target",
+    body: "Runs the queries, segments your customers by recency, frequency and spend (RFM), and scores churn risk — so campaigns aim at the right people.",
   },
   {
     n: "03",
-    title: "Autonomous sample creative",
-    body: "For qualified leads we generate a cold-outreach email and a short concept video, provisioning a workspace and project automatically.",
+    name: "Creative & Multimodal",
+    role: "Writes and renders the ads",
+    body: "Long-form copy, content briefs and search-ready structured content, paired with cinematic short-form video ads, viral hooks and product animations.",
   },
   {
     n: "04",
-    title: "One-click approve & deliver",
-    body: "You review the verified lead and the sample creative on one card, then approve. Nothing goes out without your say-so.",
+    name: "Channel Execution",
+    role: "Ships it everywhere",
+    body: "Posts to Google Business Profile, distributes across social, and runs the customer lifecycle email — search, social, paid and inbox from one place.",
+  },
+  {
+    n: "05",
+    name: "Analytics & Reporting",
+    role: "Watches and reports",
+    body: "Ingests conversions, flags campaign drift the moment it starts, and builds real-time, white-label executive dashboards your clients can log into.",
+  },
+];
+
+const TIERS = [
+  {
+    audience: "Solopreneurs & creators",
+    title: "A one-click campaign kit",
+    body: "Drop in a website or Shopify URL and get a complete kit back — social copy, a UGC-style video ad concept, a newsletter and an email sequence. No retainer, no agency overhead.",
+  },
+  {
+    audience: "SMEs",
+    title: "Marketing that runs itself",
+    body: "Automated lifecycle marketing, local SEO and Google Business Profile posting, churn-risk intervention, and budget pacing — the day-to-day handled while you run the business.",
+  },
+  {
+    audience: "Agencies & enterprises",
+    title: "White-label the whole engine",
+    body: "Multi-tenant client isolation, a custom domain of your own (marketing.youragency.com), agency-branded PDF reports and client portals, and a sub-account for every client.",
+  },
+];
+
+const PRA_STEPS = [
+  {
+    phase: "Perceive",
+    title: "It reads your market",
+    body: "The audience agent pulls your customer data and the creative agent reads your landing page — so every play starts from what's actually true about your business.",
+  },
+  {
+    phase: "Reason",
+    title: "It decides the play",
+    body: "The orchestrator turns your objective into a plan: who to target, which channels, what to say — a reasoning loop, not a single prompt.",
+  },
+  {
+    phase: "Act",
+    title: "It produces the campaign",
+    body: "Copy, video, audience segments and channel posts are generated and staged — search, social, paid and email — ready for your review.",
+  },
+  {
+    phase: "Approve",
+    title: "You stay in control",
+    body: "Nothing ships on its own. You review the campaign on one card and approve with a click — the only step SkirrNow never automates.",
   },
 ];
 
 const FEATURES = [
   {
-    title: "Instant pitch generator",
-    body: "Paste a prospect and get a qualified, verified, legally-cleared sample ad in minutes — the fastest way to walk into a pitch already holding the creative.",
+    title: "Free Product-to-Ad generator",
+    body: "Paste a URL, verify your email and phone, and walk away with 3 viral hooks, an AI marketing audit, and a short animated ad teaser — the fastest way to see what SkirrNow does.",
   },
   {
-    title: "Inbound lead triage",
-    body: "Keyword intent classification routes every reply — interested, question, or unsubscribe — the moment it arrives.",
+    title: "RFM audience segmentation",
+    body: "Recency, frequency and monetary quintiles plus churn-risk scoring, so outreach targets the customers most likely to convert or leave.",
   },
   {
-    title: "Verification & legal guardrails",
-    body: "E.164 phone checks, metro-consistency, and an AI compliance review that flags unsubstantiated claims before they ship.",
+    title: "Cinematic short-form video",
+    body: "Character-consistent product animations and viral video ads generated in a low-cost draft, so you preview the idea before you spend on the final render.",
   },
   {
-    title: "AI copy that sounds human",
-    body: "Cold-outreach emails and social posts AI-written on your own subscription — no metered API keys.",
+    title: "Multi-channel execution",
+    body: "Google Business Profile posts, social distribution and lifecycle email — the channel agent ships to all of them from one workflow.",
   },
   {
-    title: "Concept video & images",
-    body: "Short-form concept videos and images, generated in a low-cost draft so you can preview the idea fast.",
-  },
-  {
-    title: "Multi-tenant workspaces",
-    body: "Every client is isolated by organization. Run many brands from one seat, each with its own projects and assets.",
+    title: "White-label & multi-tenant",
+    body: "Every client is isolated by organization, with a custom domain, agency-branded reports, and per-client sub-accounts. Run many brands from one seat.",
   },
   {
     title: "Hard credit guardrail",
-    body: "A strict monthly generation cap per pool. Over budget? The copy still ships — the render waits. No surprise spend.",
+    body: "A strict monthly generation cap on a shared pool. Over budget? The copy still ships — the render waits. No surprise spend, ever.",
   },
 ];
 
 // Pricing is derived from the single billing catalog (src/lib/billing/plans.ts),
-// so the marketing page and the in-app billing screen never drift. Amounts are
-// in INR (₹).
+// so the marketing page and the in-app billing screen never drift. INR (₹).
 const PRICING = BILLING_TIERS.map((t, i) => ({
   name: t.name,
   price: inr(t.priceInr),
@@ -75,20 +123,24 @@ const PRICING = BILLING_TIERS.map((t, i) => ({
 
 const FAQ = [
   {
-    q: "Do I need to pay for AI API keys?",
-    a: "No. SkirrNow runs generation through a background worker on subscriptions you already have — there are no per-token API bills.",
+    q: "Is the free audit really free?",
+    a: "Yes. Verify your email and phone (a one-time code) and you get 3 viral hooks, an AI marketing audit and a short animated teaser — no card required. Verification keeps out bots so the free render goes to real business owners. Paid plans unlock full-resolution, unwatermarked video and the automated email sequence.",
+  },
+  {
+    q: "What are the agents, exactly?",
+    a: "SkirrNow coordinates five specialists — an Orchestrator that runs the plan, plus Audience & Analytics, Creative & Multimodal, Channel Execution, and Reporting. They work as one crew on a Perceive → Reason → Act loop, so you brief a goal and they handle the rest.",
+  },
+  {
+    q: "Can I run this as my own agency, white-labeled?",
+    a: "Yes. Agencies get multi-tenant client isolation, a custom domain (marketing.youragency.com), agency-branded PDF reports and client portals, and a sub-account per client. Your clients never see SkirrNow.",
+  },
+  {
+    q: "Does anything get sent automatically?",
+    a: "No outbound send is automatic. SkirrNow drafts, renders and previews; delivery only happens after your one-click approval.",
   },
   {
     q: "How does the credit guardrail work?",
     a: "Media generation draws from a shared monthly credit pool with a hard cap. If a job would exceed it, the copy is still produced and the render is held as a draft — you never overspend by accident.",
-  },
-  {
-    q: "Is my client data isolated?",
-    a: "Yes. Every project, lead, and asset is scoped to its organization. One client can never see another's data.",
-  },
-  {
-    q: "Does anything get sent automatically?",
-    a: "No outbound send is automatic. SkirrNow drafts and previews; delivery only happens after your one-click approval.",
   },
 ];
 
@@ -98,92 +150,144 @@ export default function HomePage() {
       <SiteHeader />
 
       {/* Hero */}
-      <section className="mx-auto max-w-6xl px-6 pb-20 pt-16 sm:pt-24">
-        <p className="mb-4 inline-flex items-center rounded bg-blue-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-accent">
-          AI ad agency — for solopreneurs &amp; agencies
+      <section className="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-24">
+        <p className="mb-5 inline-flex items-center rounded border border-slate-200 px-3 py-1 font-mono text-xs uppercase tracking-widest text-accent">
+          Agentic marketing operating system
         </p>
-        <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-tight text-slate-900 sm:text-5xl">
-          Turn a single reply into a ready-to-send campaign — automatically.
+        <h1 className="max-w-4xl font-display text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-6xl">
+          Your marketing team is now a team of AI agents.
         </h1>
-        <p className="mt-5 max-w-2xl text-lg text-slate-600">
-          Your ad agency if you&apos;re a solopreneur — and the engine that runs the agency if you already are
-          one. SkirrNow qualifies every lead, verifies the business, checks the claims for legal risk, and
-          produces sample ad copy and a concept video — then hands you a one-click approve gate.
+        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-600">
+          SkirrNow Launch OS runs a coordinated crew of autonomous agents that plan, produce, optimize and
+          distribute your campaigns across search, social, paid ads and email. They perceive your market,
+          reason about the play, and act — from a single URL to a shipped campaign.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/get-started"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            Get started
+            Get your free AI Marketing Audit
           </Link>
           <Link
-            href="/#how"
+            href="/#agents"
             className="rounded border border-slate-300 px-6 py-3 text-base font-semibold text-slate-700 transition-colors hover:bg-slate-100"
           >
-            See how it works
+            Meet the agents
           </Link>
         </div>
-        <p className="mt-4 text-sm text-slate-400">
-          No API keys · Runs on your own subscriptions · Human approval before anything ships
+        <p className="mt-4 font-mono text-xs uppercase tracking-wider text-slate-400">
+          Free audit · Verify email + phone · No card · Human approval before anything ships
         </p>
       </section>
 
-      {/* Trust strip */}
+      {/* Free Product-to-Ad generator band */}
       <section className="border-y border-slate-200 bg-white">
-        <div className="mx-auto grid max-w-6xl grid-cols-2 gap-6 px-6 py-8 text-center sm:grid-cols-4">
-          {[
-            ["Seconds", "to triage a reply"],
-            ["100%", "leads verified before outreach"],
-            ["1 click", "to approve & deliver"],
-            ["₹0", "in AI API fees"],
-          ].map(([big, small]) => (
-            <div key={small}>
-              <div className="text-2xl font-extrabold text-slate-900">{big}</div>
-              <div className="mt-1 text-sm text-slate-500">{small}</div>
+        <div className="mx-auto max-w-6xl px-6 py-16">
+          <div className="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-center">
+            <div>
+              <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">
+                Free · Product-to-Ad generator
+              </p>
+              <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+                Paste your website. Walk away with an ad.
+              </h2>
+              <p className="mt-4 max-w-xl leading-relaxed text-slate-600">
+                We read your landing page, write three high-converting viral hooks, hand you an AI marketing
+                audit, and render a short animated ad teaser. Verify your email and phone to unlock it — paid
+                plans render the full-resolution, unwatermarked video and the automated email sequence.
+              </p>
+              <Link
+                href="/get-started"
+                className="mt-7 inline-flex rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
+              >
+                Generate my free ad →
+              </Link>
+            </div>
+            <ol className="space-y-4">
+              {[
+                ["Paste your URL", "Your site or Shopify link — that's the whole brief."],
+                ["Verify email + phone", "A one-time code keeps it real. No bots, no spam."],
+                ["Get hooks + audit", "Three viral hooks and an instant AI marketing audit report."],
+                ["Watch your teaser", "A short animated ad, rendered on the house. Upgrade for full-res."],
+              ].map(([t, b], i) => (
+                <li key={t} className="flex gap-4 rounded border border-slate-200 bg-slate-50 p-4">
+                  <span className="font-mono text-sm font-semibold text-accent">{String(i + 1).padStart(2, "0")}</span>
+                  <div>
+                    <div className="font-semibold text-slate-900">{t}</div>
+                    <div className="mt-1 text-sm leading-relaxed text-slate-600">{b}</div>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      {/* The agent ecosystem */}
+      <section id="agents" className="mx-auto max-w-6xl px-6 py-20">
+        <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">The agent ecosystem</p>
+        <h2 className="max-w-2xl font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          Five specialists. One orchestrated loop.
+        </h2>
+        <p className="mt-4 max-w-2xl text-slate-600">
+          A hub-and-spoke crew: an Orchestrator interprets your goal and delegates to four specialists, each an
+          expert at one part of the campaign.
+        </p>
+        <div className="mt-10 grid gap-px overflow-hidden rounded border border-slate-200 bg-slate-200 sm:grid-cols-2 lg:grid-cols-3">
+          {AGENTS.map((a) => (
+            <div key={a.n} className="bg-slate-50 p-6">
+              <div className="flex items-baseline justify-between">
+                <span className="font-mono text-xs uppercase tracking-wider text-accent">{a.role}</span>
+                <span className="font-mono text-xs text-slate-400">{a.n}</span>
+              </div>
+              <h3 className="mt-3 font-display text-lg font-semibold text-slate-900">{a.name}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{a.body}</p>
             </div>
           ))}
-        </div>
-      </section>
-
-      {/* Who it's for */}
-      <section className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Built for two kinds of operators</h2>
-        <p className="mt-3 max-w-2xl text-slate-600">
-          Whether you need an agency or you are one, SkirrNow does the lead-to-creative work.
-        </p>
-        <div className="mt-10 grid gap-6 md:grid-cols-2">
-          <div className="rounded border border-slate-200 bg-white p-7">
-            <div className="text-sm font-bold text-accent">Solopreneurs</div>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">Your on-demand ad agency</h3>
-            <p className="mt-3 leading-relaxed text-slate-600">
-              No retainer, no agency overhead. Bring your leads or capture them here — SkirrNow qualifies each
-              one and delivers approve-ready ad copy and a concept video. You just say go.
-            </p>
-          </div>
-          <div className="rounded border border-slate-200 bg-white p-7">
-            <div className="text-sm font-bold text-accent">Ad agencies</div>
-            <h3 className="mt-2 text-xl font-semibold text-slate-900">Run your agency on autopilot</h3>
-            <p className="mt-3 leading-relaxed text-slate-600">
-              Point your inbound at SkirrNow and it qualifies, verifies, and drafts creative for every lead —
-              your team just reviews and approves. A white-label workspace per client keeps every account isolated.
+          <div className="hidden bg-slate-50 p-6 lg:block">
+            <div className="font-mono text-xs uppercase tracking-wider text-slate-400">Hub &amp; spoke</div>
+            <p className="mt-3 text-sm leading-relaxed text-slate-500">
+              You brief the Orchestrator once. It holds the context and hands work to the specialist that fits —
+              the way a real agency runs, minus the retainer.
             </p>
           </div>
         </div>
       </section>
 
-      {/* How it works */}
+      {/* Who it's for — three tiers */}
+      <section id="tiers" className="border-y border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-6 py-20">
+          <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">Built for every operator</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            Solo, SME, or a full agency — one OS.
+          </h2>
+          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+            {TIERS.map((t) => (
+              <div key={t.audience} className="flex flex-col rounded border border-slate-200 bg-slate-50 p-7">
+                <div className="font-mono text-xs uppercase tracking-wider text-accent">{t.audience}</div>
+                <h3 className="mt-3 font-display text-xl font-semibold text-slate-900">{t.title}</h3>
+                <p className="mt-3 flex-1 leading-relaxed text-slate-600">{t.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works — Perceive / Reason / Act */}
       <section id="how" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">From reply to campaign, on autopilot</h2>
-        <p className="mt-3 max-w-2xl text-slate-600">
-          Whether the lead is yours or your client&apos;s, the pipeline runs in the background — and you stay in
-          control at the only step that matters: approval.
+        <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">Perceive · Reason · Act</p>
+        <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          The loop behind every campaign.
+        </h2>
+        <p className="mt-4 max-w-2xl text-slate-600">
+          The agents run in the background — you stay in control at the only step that matters: approval.
         </p>
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {STEPS.map((s) => (
-            <div key={s.n} className="rounded border border-slate-200 bg-white p-6">
-              <div className="text-sm font-bold text-accent">{s.n}</div>
-              <h3 className="mt-2 text-lg font-semibold text-slate-900">{s.title}</h3>
+          {PRA_STEPS.map((s) => (
+            <div key={s.phase} className="rounded border border-slate-200 bg-white p-6">
+              <div className="font-mono text-xs uppercase tracking-wider text-accent">{s.phase}</div>
+              <h3 className="mt-2 font-display text-lg font-semibold text-slate-900">{s.title}</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
             </div>
           ))}
@@ -193,12 +297,15 @@ export default function HomePage() {
       {/* Features */}
       <section id="features" className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Everything the pipeline needs, built in</h2>
+          <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">What's inside</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            Everything the crew needs, built in.
+          </h2>
           <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className="rounded border border-slate-200 p-6">
                 <div className="mb-3 h-1.5 w-8 rounded bg-accent" />
-                <h3 className="text-lg font-semibold text-slate-900">{f.title}</h3>
+                <h3 className="font-display text-lg font-semibold text-slate-900">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.body}</p>
               </div>
             ))}
@@ -208,10 +315,13 @@ export default function HomePage() {
 
       {/* Pricing */}
       <section id="pricing" className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Simple pricing, in ₹</h2>
-        <p className="mt-3 max-w-2xl text-slate-600">
-          Generation runs on the subscriptions you already have — no metered API bills. Each plan sets your
-          monthly media-credit allowance. Billed monthly in Indian Rupees.
+        <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">Pricing</p>
+        <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+          Start free. Scale in ₹.
+        </h2>
+        <p className="mt-4 max-w-2xl text-slate-600">
+          The Product-to-Ad audit is free. Paid plans set your monthly media-credit allowance and unlock
+          full-resolution video, multi-channel execution and white-label. Billed monthly in Indian Rupees.
         </p>
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
           {PRICING.map((p) => (
@@ -222,13 +332,13 @@ export default function HomePage() {
               }`}
             >
               {p.highlight && (
-                <span className="mb-3 inline-block w-fit rounded bg-blue-50 px-2.5 py-1 text-xs font-semibold text-accent">
+                <span className="mb-3 inline-block w-fit rounded bg-blue-50 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-accent">
                   Most popular
                 </span>
               )}
-              <div className="text-sm font-medium text-slate-500">{p.name}</div>
-              <div className="mt-1 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-slate-900">{p.price}</span>
+              <div className="font-mono text-xs uppercase tracking-wider text-slate-500">{p.name}</div>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="font-display text-4xl font-bold text-slate-900">{p.price}</span>
                 {p.period && <span className="text-sm text-slate-500">{p.period}</span>}
               </div>
               <div className="mt-1 text-sm text-slate-500">{p.tagline}</div>
@@ -258,11 +368,14 @@ export default function HomePage() {
       {/* FAQ */}
       <section id="faq" className="border-t border-slate-200 bg-white">
         <div className="mx-auto max-w-3xl px-6 py-20">
-          <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Questions, answered</h2>
+          <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">FAQ</p>
+          <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
+            Questions, answered.
+          </h2>
           <div className="mt-8 divide-y divide-slate-200">
             {FAQ.map((f) => (
               <div key={f.q} className="py-5">
-                <h3 className="font-semibold text-slate-900">{f.q}</h3>
+                <h3 className="font-display font-semibold text-slate-900">{f.q}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{f.a}</p>
               </div>
             ))}
@@ -274,14 +387,18 @@ export default function HomePage() {
       <section className="bg-slate-900">
         <div className="mx-auto flex max-w-6xl flex-col items-start gap-6 px-6 py-16 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-white">Ready to work with SkirrNow?</h2>
-            <p className="mt-2 text-slate-300">Send us a note — we&apos;ll show you a qualified lead with sample creative.</p>
+            <h2 className="font-display text-2xl font-bold tracking-tight text-white">
+              Ready to put the agents to work?
+            </h2>
+            <p className="mt-2 text-slate-300">
+              Paste a URL, verify your details, and we&apos;ll show you hooks, an audit and a teaser — free.
+            </p>
           </div>
           <Link
             href="/get-started"
             className="rounded bg-accent px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            Get started
+            Get your free audit
           </Link>
         </div>
       </section>
