@@ -297,7 +297,7 @@ export default function HomePage() {
       {/* Features */}
       <section id="features" className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-6 py-20">
-          <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">What's inside</p>
+          <p className="mb-4 font-mono text-xs uppercase tracking-widest text-accent">What&apos;s inside</p>
           <h2 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
             Everything the crew needs, built in.
           </h2>
