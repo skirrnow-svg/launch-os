@@ -64,26 +64,28 @@ export default function AdminSettingsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 560, margin: "0 auto", padding: "40px 24px" }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Integration settings</h1>
-      <p style={{ color: "#64748b", marginBottom: 28 }}>
-        Admin only. Update the API keys Launch OS uses for AI generation. Keys are stored
-        encrypted and never shown again once saved.
+    <div className="max-w-xl">
+      <p className="font-mono text-xs uppercase tracking-widest text-accent">Admin</p>
+      <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-slate-900">Integration settings</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Admin only. Update the API keys Launch OS uses for AI generation. Keys are stored encrypted and never
+        shown again once saved.
       </p>
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 20 }}>
+
+      <form onSubmit={onSubmit} className="mt-6 grid gap-5 rounded border border-slate-200 bg-white p-6">
         {FIELDS.map((f) => {
           const c = current[f.name];
           return (
-            <label key={f.name} style={{ display: "grid", gap: 6 }}>
-              <span style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600, fontSize: 14 }}>
+            <label key={f.name} className="grid gap-1.5">
+              <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
                 {f.label}
                 {c?.set ? (
-                  <span style={{ fontWeight: 500, fontSize: 12, color: "#16a34a" }}>
+                  <span className="text-xs font-medium text-success">
                     ✓ {c.masked}
                     {c.source === "env" ? " (from server env)" : " (saved)"}
                   </span>
                 ) : (
-                  <span style={{ fontWeight: 500, fontSize: 12, color: "#94a3b8" }}>not set</span>
+                  <span className="text-xs font-medium text-slate-400">not set</span>
                 )}
               </span>
               <input
@@ -92,25 +94,25 @@ export default function AdminSettingsPage() {
                 placeholder={c?.set ? "Enter a new value to replace" : f.placeholder}
                 value={values[f.name] ?? ""}
                 onChange={(e) => setValues((v) => ({ ...v, [f.name]: e.target.value }))}
-                style={{ padding: "10px 12px", border: "1px solid #cbd5e1", borderRadius: 8, font: "inherit" }}
+                className="rounded border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
               />
-              <span style={{ color: "#94a3b8", fontSize: 12 }}>{f.help}</span>
+              <span className="text-xs text-slate-400">{f.help}</span>
             </label>
           );
         })}
         <button
           type="submit"
           disabled={status === "saving"}
-          style={{ justifySelf: "start", padding: "10px 18px", borderRadius: 6, border: 0, background: "var(--accent)", color: "#17161D", fontWeight: 600, cursor: "pointer" }}
+          className="justify-self-start rounded bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50"
         >
           {status === "saving" ? "Saving…" : "Save keys"}
         </button>
         {message && (
-          <p role="status" style={{ color: status === "error" ? "#dc2626" : "#16a34a", fontSize: 14 }}>
+          <p role="status" className={`text-sm ${status === "error" ? "text-danger" : "text-success"}`}>
             {message}
           </p>
         )}
       </form>
-    </main>
+    </div>
   );
 }

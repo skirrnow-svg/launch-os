@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ClerkProvider, UserButton, OrganizationSwitcher } from "@clerk/nextjs";
+import { clerkAppearance } from "@/lib/clerkAppearance";
 
 
 /**
@@ -25,7 +26,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   ];
 
   return (
-    <ClerkProvider>
+    <ClerkProvider appearance={clerkAppearance}>
       <div className="min-h-screen grid grid-cols-[220px_1fr] bg-slate-50 text-slate-900">
         <aside className="border-r border-slate-200 bg-white flex flex-col">
           <div className="px-5 py-5 border-b border-slate-200">

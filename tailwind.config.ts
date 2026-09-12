@@ -53,6 +53,17 @@ const config: Config = {
         success: "#4ADE80",
         danger: "#F87171",
         warning: "#FBBF24",
+        // Status/notice tints, remapped for the dark canvas so `bg-*-50` chips
+        // render as dark tinted panels with bright, legible text (instead of the
+        // default light pastels, which glare on the dark ground). Green/emerald →
+        // success, red/rose → danger, amber/yellow/orange → warning.
+        emerald: { 50: "#0F1E16", 100: "#12261B", 200: "#1C3A2A", 600: "#34D399", 700: "#6EE7B7", 800: "#A7F3D0" },
+        green: { 50: "#0F1E16", 100: "#12261B", 200: "#1C3A2A", 600: "#34D399", 700: "#6EE7B7", 800: "#A7F3D0" },
+        red: { 50: "#241316", 100: "#2E171B", 200: "#4A2228", 600: "#F87171", 700: "#FCA5A5", 800: "#FECACA" },
+        rose: { 50: "#241316", 100: "#2E171B", 200: "#4A2228", 600: "#F87171", 700: "#FCA5A5", 800: "#FECACA" },
+        amber: { 50: "#241C0E", 100: "#2E2413", 200: "#4A3A1C", 600: "#FBBF24", 700: "#FCD34D", 800: "#FDE68A" },
+        yellow: { 50: "#241C0E", 100: "#2E2413", 200: "#4A3A1C", 600: "#FBBF24", 700: "#FCD34D", 800: "#FDE68A" },
+        orange: { 50: "#241C0E", 100: "#2E2413", 200: "#4A3A1C", 600: "#FB923C", 700: "#FDBA74", 800: "#FED7AA" },
       },
       fontFamily: {
         display: ["var(--font-display)", "Space Grotesk", "system-ui", "sans-serif"],
