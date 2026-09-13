@@ -18,6 +18,14 @@ export default function SiteFooter() {
           <Link href="/sign-in" className="hover:text-slate-900">Sign in</Link>
         </div>
       </div>
+      <div className="border-t border-slate-100">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-5 gap-y-2 px-6 py-4 text-xs text-slate-400">
+          <Link href="/legal/privacy" className="hover:text-slate-700">Privacy Policy</Link>
+          <Link href="/legal/terms" className="hover:text-slate-700">Terms of Use</Link>
+          <Link href="/legal/refunds" className="hover:text-slate-700">Refund &amp; Cancellation</Link>
+          <Link href="/legal/acceptable-use" className="hover:text-slate-700">Acceptable Use</Link>
+        </div>
+      </div>
       <div className="border-t border-slate-100 py-4 text-center text-xs text-slate-400">
         © {new Date().getFullYear()} SkirrNow. All rights reserved.
       </div>
