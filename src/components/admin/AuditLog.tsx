@@ -17,6 +17,8 @@ type Totals = { higgsfield: { events: number; credits: number; tokens: number };
 const num = (n: number) => n.toLocaleString("en-IN");
 const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const when = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+// Customer-facing label for the media provider (internal id stays "higgsfield").
+const providerLabel = (p: string) => (p === "higgsfield" ? "Graphics, Video & Web" : p === "claude" ? "Claude" : p);
 
 export default function AuditLog() {
   const [totals, setTotals] = useState<Totals | null>(null);
@@ -44,15 +46,15 @@ export default function AuditLog() {
       <p className="font-mono text-xs uppercase tracking-widest text-accent">Telemetry</p>
       <h2 className="mt-2 font-display text-xl font-bold tracking-tight">Audit log</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Every AI generation across all workspaces, metered on two axes — Higgsfield credits (media) and Claude tokens
-        (copy/audit) — plus the platform admin-action trail. Claude token counts are estimated (≈4 chars/token) until
-        exact metering lands.
+        Every AI generation across all workspaces, metered on two axes — Graphics, Video &amp; Web credits (media) and
+        Claude tokens (copy/audit) — plus the platform admin-action trail. Claude token counts are estimated
+        (≈4 chars/token) until exact metering lands.
       </p>
 
       {/* Totals */}
       {totals && (
         <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Tile label="Higgsfield credits" value={num(totals.higgsfield.credits)} sub={`${num(totals.higgsfield.events)} events`} />
+          <Tile label="Graphics, Video & Web credits" value={num(totals.higgsfield.credits)} sub={`${num(totals.higgsfield.events)} events`} />
           <Tile label="Claude tokens" value={compact(totals.claude.tokens)} sub={`${num(totals.claude.events)} calls`} />
           <Tile label="Media generations" value={num(totals.higgsfield.events)} sub="images · videos · sites" />
           <Tile label="Copy generations" value={num(totals.claude.events)} sub="briefs · copy · audits" />
@@ -64,7 +66,7 @@ export default function AuditLog() {
         {(["all", "higgsfield", "claude"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             className={`rounded px-3 py-1.5 text-xs font-semibold transition-colors ${filter === f ? "bg-accent text-white" : "border border-slate-300 text-slate-600 hover:bg-slate-100"}`}>
-            {f === "all" ? "All providers" : f === "higgsfield" ? "Higgsfield" : "Claude"}
+            {f === "all" ? "All providers" : f === "higgsfield" ? "Graphics, Video & Web" : "Claude"}
           </button>
         ))}
       </div>
@@ -94,7 +96,7 @@ export default function AuditLog() {
                 <td className="px-4 py-3 text-slate-700">{e.org}</td>
                 <td className="px-4 py-3">
                   <span className={`rounded px-2 py-0.5 text-xs font-medium ${e.provider === "higgsfield" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
-                    {e.provider}
+                    {providerLabel(e.provider)}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{e.kind}</td>

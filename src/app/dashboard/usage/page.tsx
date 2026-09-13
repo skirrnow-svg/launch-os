@@ -18,6 +18,8 @@ const SRC_NOTE: Record<string, string> = { plan: "from plan", free: "free tier",
 const num = (n: number) => n.toLocaleString("en-IN");
 const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const when = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+// Customer-facing label for the media provider (internal id stays "higgsfield").
+const providerLabel = (p: string) => (p === "higgsfield" ? "Graphics, Video & Web" : p === "claude" ? "Claude" : p);
 
 export default function UsagePage() {
   const [data, setData] = useState<Data | null>(null);
@@ -40,9 +42,9 @@ export default function UsagePage() {
       <p className="font-mono text-xs uppercase tracking-widest text-accent">Telemetry</p>
       <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">Usage</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Your workspace&apos;s AI spend for the current billing period, metered on two axes — Higgsfield credits for media
-        and Claude tokens for copy &amp; audits. Allowances come from your plan and reset each cycle. Claude tokens are
-        estimated (≈4 chars/token) until exact metering lands.
+        Your workspace&apos;s AI spend for the current billing period, metered on two axes — Graphics, Video &amp; Web
+        credits for media and Claude tokens for copy &amp; audits. Allowances come from your plan and reset each cycle.
+        Claude tokens are estimated (≈4 chars/token) until exact metering lands.
       </p>
 
       {/* Plan + period */}
@@ -57,7 +59,7 @@ export default function UsagePage() {
 
       {/* Budgets */}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <BudgetCard title="Higgsfield credits" unit="credits" b={data.credits} fmt={num} />
+        <BudgetCard title="Graphics, Video & Web credits" unit="credits" b={data.credits} fmt={num} />
         <BudgetCard title="Claude tokens" unit="tokens" b={data.claude} fmt={compact} />
       </div>
 
@@ -81,7 +83,7 @@ export default function UsagePage() {
               <tr key={e.id}>
                 <td className="px-4 py-3 whitespace-nowrap text-slate-500">{when(e.createdAt)}</td>
                 <td className="px-4 py-3">
-                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${e.provider === "higgsfield" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{e.provider}</span>
+                  <span className={`rounded px-2 py-0.5 text-xs font-medium ${e.provider === "higgsfield" ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>{providerLabel(e.provider)}</span>
                 </td>
                 <td className="px-4 py-3 text-slate-600">{e.kind}</td>
                 <td className="px-4 py-3 font-mono text-[11px] text-slate-400">{e.model ?? "—"}</td>
