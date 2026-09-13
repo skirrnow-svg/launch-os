@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import PricingOffers from "@/components/admin/PricingOffers";
 import Coupons from "@/components/admin/Coupons";
+import AuditLog from "@/components/admin/AuditLog";
 
 /**
  * Admin → Organizations, Pricing & offers, Coupons. A platform-admin-only
@@ -18,8 +19,13 @@ type Org = {
   accountType: string;
   creditCap: number | null;
   creditsUsed: number;
+  claudeTokenCap: number | null;
+  claudeTokensUsed: number;
+  claudeTokenDefault: number;
   branded: boolean;
 };
+
+const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 const TYPES = ["solo", "sme", "agency"];
 
@@ -49,7 +55,7 @@ export default function AdminOrgsPage() {
       const res = await fetch("/api/admin/orgs", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: o.id, accountType: o.accountType, creditCap: o.creditCap ?? "" }),
+        body: JSON.stringify({ orgId: o.id, accountType: o.accountType, creditCap: o.creditCap ?? "", claudeTokenCap: o.claudeTokenCap ?? "" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed.");
@@ -90,14 +96,15 @@ export default function AdminOrgsPage() {
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Credit cap</th>
               <th className="px-4 py-3 font-medium">Used</th>
+              <th className="px-4 py-3 font-medium">Claude tokens</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {orgs == null ? (
-              <tr><td className="px-4 py-4 text-slate-500" colSpan={5}>Loading…</td></tr>
+              <tr><td className="px-4 py-4 text-slate-500" colSpan={6}>Loading…</td></tr>
             ) : orgs.length === 0 ? (
-              <tr><td className="px-4 py-4 text-slate-500" colSpan={5}>No organizations yet.</td></tr>
+              <tr><td className="px-4 py-4 text-slate-500" colSpan={6}>No organizations yet.</td></tr>
             ) : orgs.map((o) => (
               <tr key={o.id}>
                 <td className="px-4 py-3">
@@ -123,6 +130,17 @@ export default function AdminOrgsPage() {
                   />
                 </td>
                 <td className="px-4 py-3 tabular-nums text-slate-500">{o.creditsUsed}</td>
+                <td className="px-4 py-3">
+                  <input
+                    type="number" min={0}
+                    value={o.claudeTokenCap ?? ""}
+                    placeholder={compact(o.claudeTokenDefault)}
+                    onChange={(e) => setLocal(o.id, { claudeTokenCap: e.target.value === "" ? null : Number(e.target.value) })}
+                    className="w-28 rounded border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none"
+                    title="Monthly Claude-token cap. Blank = plan default (shown)."
+                  />
+                  <div className="mt-1 font-mono text-[10px] text-slate-400">{compact(o.claudeTokensUsed)} used</div>
+                </td>
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => save(o)}
@@ -140,6 +158,7 @@ export default function AdminOrgsPage() {
 
       <PricingOffers />
       <Coupons />
+      <AuditLog />
     </div>
   );
 }

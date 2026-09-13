@@ -28,6 +28,13 @@ export type BillingTier = {
   amountPaise: number;
   /** Per-org monthly Higgsfield credit allowance (sets organizations.credit_cap). */
   creditsPerMonth: number;
+  /**
+   * Per-org monthly Claude-token allowance (sets organizations.claude_token_cap).
+   * Metered SEPARATELY from Higgsfield credits — copy/audit/brief generation.
+   * Deliberately generous; every plan (and the free tier) includes a comfortable
+   * allowance so copy work is rarely the bottleneck.
+   */
+  claudeTokensPerMonth: number;
   /** Roughly how many sample concept videos that buys (~6 credits each). */
   approxVideosPerMonth: number;
   /** Env var holding this tier's Razorpay Plan id, resolved at runtime. */
@@ -50,6 +57,7 @@ export const BILLING_TIERS: BillingTier[] = [
     priceInr: 4999,
     amountPaise: 4999 * 100,
     creditsPerMonth: 30,
+    claudeTokensPerMonth: 750000,
     approxVideosPerMonth: 5,
     planIdEnvVar: "RAZORPAY_PLAN_STARTER",
     tagline: "For solopreneurs getting started.",
@@ -66,6 +74,7 @@ export const BILLING_TIERS: BillingTier[] = [
     priceInr: 12999,
     amountPaise: 12999 * 100,
     creditsPerMonth: 90,
+    claudeTokensPerMonth: 2000000,
     approxVideosPerMonth: 15,
     planIdEnvVar: "RAZORPAY_PLAN_GROWTH",
     tagline: "For busy solopreneurs & small agencies.",
@@ -82,6 +91,7 @@ export const BILLING_TIERS: BillingTier[] = [
     priceInr: 24999,
     amountPaise: 24999 * 100,
     creditsPerMonth: 180,
+    claudeTokensPerMonth: 6000000,
     approxVideosPerMonth: 30,
     planIdEnvVar: "RAZORPAY_PLAN_SCALE",
     tagline: "For agencies running high lead volume.",
@@ -93,9 +103,25 @@ export const BILLING_TIERS: BillingTier[] = [
   },
 ];
 
+/**
+ * Claude-token allowance for the FREE tier (the free Product-to-Ad generator and
+ * unpromoted solo orgs). Generous on purpose — copy is cheap on the subscription
+ * CLI, and a comfortable free allowance keeps the lead-gen wedge frictionless.
+ */
+export const FREE_CLAUDE_TOKENS = 150_000;
+
 /** Look up a tier by its internal slug. */
 export function tierBySlug(slug: string): BillingTier | null {
   return BILLING_TIERS.find((t) => t.slug === slug) ?? null;
+}
+
+/** Default monthly Claude-token allowance for an account type (falls back to free). */
+export function claudeTokensForAccountType(accountType: string | null | undefined): number {
+  switch (accountType) {
+    case "agency": return BILLING_TIERS.find((t) => t.slug === "scale")?.claudeTokensPerMonth ?? FREE_CLAUDE_TOKENS;
+    case "sme": return BILLING_TIERS.find((t) => t.slug === "growth")?.claudeTokensPerMonth ?? FREE_CLAUDE_TOKENS;
+    default: return FREE_CLAUDE_TOKENS;
+  }
 }
 
 /**

@@ -110,6 +110,34 @@ function parseJsonish(text) {
   try { return JSON.parse(t); } catch { return null; }
 }
 
+// ---- Usage telemetry --------------------------------------------------------
+// Estimate Claude tokens (~4 chars/token) since the CLI returns plain text.
+function estTokens(...parts) {
+  const c = parts.reduce((n, p) => n + (typeof p === "string" ? p.length : 0), 0);
+  return Math.max(1, Math.ceil(c / 4));
+}
+// Log one usage_events row; for Claude also increment the org's token counter.
+// Best-effort — telemetry must never fail a generation job.
+async function recordUsage(orgId, e) {
+  if (!orgId) return;
+  try {
+    const tokens = Number.isFinite(e.tokens) ? Math.max(0, Math.round(e.tokens)) : 0;
+    const credits = Number.isFinite(e.credits) ? Number(e.credits) : 0;
+    await prisma.usage_events.create({
+      data: {
+        org_id: orgId, provider: e.provider, kind: e.kind, model: e.model ?? null,
+        credits, tokens: BigInt(tokens), estimated: !!e.estimated, status: e.status || "ok",
+        ref_type: e.refType ?? null, ref_id: e.refId ?? null,
+      },
+    });
+    if (e.provider === "claude" && tokens > 0) {
+      await prisma.organizations.update({ where: { id: orgId }, data: { claude_tokens_used: { increment: BigInt(tokens) } } });
+    }
+  } catch (err) {
+    console.error("[runner] usage record failed:", err?.message || err);
+  }
+}
+
 async function claimCampaign() {
   const rows = await prisma.$queryRawUnsafe(`
     UPDATE email_campaigns SET status='generating', updated_at=now()
@@ -117,7 +145,7 @@ async function claimCampaign() {
       SELECT id FROM email_campaigns
       WHERE status='queued' AND generation_brief IS NOT NULL
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, name, subject, generation_brief
+    ) RETURNING id, name, subject, generation_brief, org_id
   `);
   return rows[0] || null;
 }
@@ -136,6 +164,10 @@ async function processCampaign(c) {
       generation_brief: null,
     },
   });
+  await recordUsage(c.org_id, {
+    provider: "claude", kind: "email", model: process.env.CLAUDE_CODE_MODEL || "sonnet",
+    tokens: estTokens(c.generation_brief, out), estimated: true, refType: "email_campaign", refId: c.id,
+  });
   console.log(`[runner] campaign ${c.id} copy ready`);
 }
 
@@ -146,7 +178,7 @@ async function claimPost() {
       SELECT id FROM social_posts
       WHERE status='queued' AND generation_brief IS NOT NULL
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, content, generation_brief
+    ) RETURNING id, content, generation_brief, org_id
   `);
   return rows[0] || null;
 }
@@ -156,6 +188,10 @@ async function processPost(p) {
     'You are a senior social copywriter. Return ONLY JSON {"content": string, "hashtags": string[]} — punchy on-brand copy plus 3-6 hashtags (no # prefix).',
   );
   const parsed = parseJsonish(out) || {};
+  await recordUsage(p.org_id, {
+    provider: "claude", kind: "social", model: process.env.CLAUDE_CODE_MODEL || "sonnet",
+    tokens: estTokens(p.generation_brief, out), estimated: true, refType: "social_post", refId: p.id,
+  });
   await prisma.social_posts.update({
     where: { id: p.id },
     data: {
@@ -243,6 +279,10 @@ async function processAsset(asset) {
       data: { credits_used: { increment: cost } },
     });
   }
+  await recordUsage(asset.org_id, {
+    provider: "higgsfield", kind: asset.type || "media", model: jst,
+    credits: Number.isFinite(cost) ? cost : 0, refType: "asset", refId: asset.id,
+  });
   console.log(`[runner] ready ${asset.id} (${jst}, ~${cost} cr) → ${url}`);
 }
 
@@ -376,6 +416,10 @@ async function processFreeReport(lead) {
   await prisma.lead.update({
     where: { id: lead.id },
     data: { status: "QUALIFIED", verification: { free_report, audited_at: new Date().toISOString() } },
+  });
+  await recordUsage(lead.org_id, {
+    provider: "claude", kind: "audit", model: process.env.CLAUDE_CODE_MODEL || "sonnet",
+    tokens: estTokens(lead.raw_body, out), estimated: true, refType: "lead", refId: lead.id,
   });
   console.log(`[runner] free-generator lead ${lead.id} report ready (${free_report.hooks.length} hooks).`);
 }

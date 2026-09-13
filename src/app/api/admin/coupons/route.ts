@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 import { BILLING_TIERS } from "@/lib/billing/plans";
 import { COUPON_KINDS, normalizeCode, type CouponKind } from "@/lib/billing/coupons";
+import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -43,8 +44,9 @@ export const GET = withErrors<unknown>(async () => {
 });
 
 export const POST = withErrors<unknown>(async (request) => {
+  let ctx;
   try {
-    await requireAdmin();
+    ctx = await requireAdmin();
   } catch (e) {
     return forbidden(e);
   }
@@ -88,12 +90,14 @@ export const POST = withErrors<unknown>(async (request) => {
   const c = await prisma.coupons.create({
     data: { code, kind, value: Math.round(value), applies_to: appliesTo, max_redemptions: maxRedemptions, expires_at: expiresAt },
   });
+  await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "coupon.create", resourceType: "coupon", changes: { code, kind, value: Math.round(value), appliesTo, maxRedemptions, expiresAt: expiresAt?.toISOString() ?? null } });
   return NextResponse.json({ ok: true, id: c.id });
 });
 
 export const PATCH = withErrors<unknown>(async (request) => {
+  let ctx;
   try {
-    await requireAdmin();
+    ctx = await requireAdmin();
   } catch (e) {
     return forbidden(e);
   }
@@ -101,19 +105,22 @@ export const PATCH = withErrors<unknown>(async (request) => {
   const id = typeof body.id === "string" ? body.id : "";
   if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
   if (typeof body.active !== "boolean") return NextResponse.json({ error: "active (boolean) is required." }, { status: 400 });
-  await prisma.coupons.update({ where: { id }, data: { active: body.active } });
+  const updated = await prisma.coupons.update({ where: { id }, data: { active: body.active } });
+  await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: body.active ? "coupon.activate" : "coupon.deactivate", resourceType: "coupon", changes: { code: updated.code, active: body.active } });
   return NextResponse.json({ ok: true });
 });
 
 export const DELETE = withErrors<unknown>(async (request) => {
+  let ctx;
   try {
-    await requireAdmin();
+    ctx = await requireAdmin();
   } catch (e) {
     return forbidden(e);
   }
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const id = typeof body.id === "string" ? body.id : "";
   if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 });
-  await prisma.coupons.delete({ where: { id } });
+  const removed = await prisma.coupons.delete({ where: { id } });
+  await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "coupon.delete", resourceType: "coupon", changes: { code: removed.code } });
   return NextResponse.json({ ok: true });
 });

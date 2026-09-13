@@ -23,6 +23,7 @@ const BASE = [
   { href: "/dashboard/audience", label: "Audience" },
   { href: "/dashboard/leads", label: "Leads" },
   { href: "/dashboard/reports", label: "Reports" },
+  { href: "/dashboard/usage", label: "Usage" },
   { href: "/dashboard/billing", label: "Billing" },
 ];
 

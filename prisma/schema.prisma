@@ -267,12 +267,15 @@ model organizations {
   account_type            String               @default("solo")
   brand_name              String?
   brand_color             String?
+  claude_tokens_used      BigInt               @default(0)
+  claude_token_cap        BigInt?
   api_usage               api_usage[]
   audit_logs              audit_logs[]
   contacts                contacts[]
   integration_tokens      integration_tokens[]
   org_members             org_members[]
   projects                projects[]
+  usage_events            usage_events[]
 
   @@index([slug], map: "idx_organizations_slug")
   @@index([stripe_customer_id], map: "idx_organizations_stripe_customer_id")
@@ -402,6 +405,7 @@ model users {
   projects                                  projects[]
   segments                                  segments[]
   social_posts                              social_posts[]
+  usage_events                              usage_events[]
   workflows                                 workflows[]
 
   @@index([auth_id], map: "idx_users_auth_id")
@@ -531,4 +535,27 @@ model pricing_overrides {
   price_inr         Int?
   credits_per_month Int?
   updated_at        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model usage_events {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id        String        @db.Uuid
+  user_id       String?       @db.Uuid
+  provider      String
+  kind          String
+  model         String?
+  credits       Decimal       @default(0) @db.Decimal
+  tokens        BigInt        @default(0)
+  estimated     Boolean       @default(false)
+  status        String        @default("ok")
+  ref_type      String?
+  ref_id        String?
+  metadata      Json?
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?        @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_usage_events_created")
+  @@index([org_id, created_at(sort: Desc)], map: "idx_usage_events_org_created")
+  @@index([provider], map: "idx_usage_events_provider")
 }

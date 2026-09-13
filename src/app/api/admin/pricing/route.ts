@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 import { BILLING_TIERS } from "@/lib/billing/plans";
 import { effectiveTiers, getSignupOffer } from "@/lib/billing/pricing";
+import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
 
@@ -47,8 +48,9 @@ export const GET = withErrors<unknown>(async () => {
 });
 
 export const PATCH = withErrors<unknown>(async (request) => {
+  let ctx;
   try {
-    await requireAdmin();
+    ctx = await requireAdmin();
   } catch (e) {
     return forbidden(e);
   }
@@ -71,6 +73,7 @@ export const PATCH = withErrors<unknown>(async (request) => {
       update: data,
       create: { slug: tier.slug, price_inr: price ?? null, credits_per_month: credits ?? null },
     });
+    await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "pricing.update", resourceType: "pricing", changes: { slug: tier.slug, priceInr: price, creditsPerMonth: credits } });
     touched = true;
   }
 
@@ -89,6 +92,7 @@ export const PATCH = withErrors<unknown>(async (request) => {
       update: data,
       create: { id: "singleton", ...data },
     });
+    await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "offer.update", resourceType: "offer", changes: { ...offer } });
     touched = true;
   }
 
