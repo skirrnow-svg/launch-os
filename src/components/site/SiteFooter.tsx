@@ -15,6 +15,7 @@ export default function SiteFooter() {
         <div className="flex gap-5 text-sm text-slate-500">
           <Link href="/#pricing" className="hover:text-slate-900">Pricing</Link>
           <Link href="/get-started" className="hover:text-slate-900">Get started</Link>
+          <Link href="/contact" className="hover:text-slate-900">Contact</Link>
           <Link href="/sign-in" className="hover:text-slate-900">Sign in</Link>
         </div>
       </div>
