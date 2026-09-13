@@ -22,12 +22,14 @@ type Org = {
   claudeTokenCap: number | null;
   claudeTokensUsed: number;
   claudeTokenDefault: number;
+  plan: string | null;
   branded: boolean;
 };
 
 const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 
 const TYPES = ["solo", "sme", "agency"];
+const PLANS = ["", "starter", "growth", "scale"];
 
 export default function AdminOrgsPage() {
   const [orgs, setOrgs] = useState<Org[] | null>(null);
@@ -55,7 +57,7 @@ export default function AdminOrgsPage() {
       const res = await fetch("/api/admin/orgs", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId: o.id, accountType: o.accountType, creditCap: o.creditCap ?? "", claudeTokenCap: o.claudeTokenCap ?? "" }),
+        body: JSON.stringify({ orgId: o.id, accountType: o.accountType, plan: o.plan ?? "", creditCap: o.creditCap ?? "", claudeTokenCap: o.claudeTokenCap ?? "" }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Save failed.");
@@ -82,8 +84,9 @@ export default function AdminOrgsPage() {
       <p className="font-mono text-xs uppercase tracking-widest text-accent">Admin</p>
       <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">Organizations</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Set each workspace&apos;s account type (agency unlocks white-label branding) and its monthly generation-credit
-        cap. No API keys are needed — generation runs on the connected subscriptions.
+        Set each workspace&apos;s <strong>plan</strong> (drives its monthly credit + Claude-token allowance and the billing
+        cycle it resets on) and account type (agency unlocks white-label branding). Cap fields override the plan default
+        when set — leave blank to use the plan. Assigning a plan is a manual stand-in until Razorpay billing is wired.
       </p>
 
       {message && <p role="status" className="mt-4 rounded bg-blue-50 px-3 py-2 text-sm text-accent">{message}</p>}
@@ -93,6 +96,7 @@ export default function AdminOrgsPage() {
           <thead>
             <tr className="border-b border-slate-200 text-left font-mono text-[11px] uppercase tracking-wider text-slate-400">
               <th className="px-4 py-3 font-medium">Workspace</th>
+              <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 font-medium">Credit cap</th>
               <th className="px-4 py-3 font-medium">Used</th>
@@ -102,14 +106,23 @@ export default function AdminOrgsPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {orgs == null ? (
-              <tr><td className="px-4 py-4 text-slate-500" colSpan={6}>Loading…</td></tr>
+              <tr><td className="px-4 py-4 text-slate-500" colSpan={7}>Loading…</td></tr>
             ) : orgs.length === 0 ? (
-              <tr><td className="px-4 py-4 text-slate-500" colSpan={6}>No organizations yet.</td></tr>
+              <tr><td className="px-4 py-4 text-slate-500" colSpan={7}>No organizations yet.</td></tr>
             ) : orgs.map((o) => (
               <tr key={o.id}>
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-800">{o.name}</div>
                   <div className="font-mono text-[11px] text-slate-400">{o.slug}{o.branded ? " · branded" : ""}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <select
+                    value={o.plan ?? ""}
+                    onChange={(e) => setLocal(o.id, { plan: e.target.value || null })}
+                    className="rounded border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm text-slate-900 focus:border-accent focus:outline-none"
+                  >
+                    {PLANS.map((p) => <option key={p || "none"} value={p}>{p || "Free"}</option>)}
+                  </select>
                 </td>
                 <td className="px-4 py-3">
                   <select

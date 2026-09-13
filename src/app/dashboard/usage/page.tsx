@@ -7,9 +7,13 @@ import { useEffect, useState } from "react";
  * Higgsfield credits (media) and Claude tokens (copy/audit). Available to every
  * account type; reads the org-scoped /api/usage.
  */
-type Budget = { cap: number | null; used: number; remaining: number | null; events: number; capIsDefault?: boolean };
+type Budget = { cap: number | null; used: number; remaining: number | null; events: number; source: "override" | "plan" | "free" };
 type Event = { id: string; createdAt: string; provider: string; kind: string; model: string | null; credits: number; tokens: number; estimated: boolean; status: string };
-type Data = { credits: Budget; claude: Budget; events: Event[] };
+type Plan = { slug: string | null; name: string; status: string; provider: string };
+type PeriodInfo = { start: string; end: string; label: string };
+type Data = { plan: Plan; period: PeriodInfo; credits: Budget; claude: Budget; events: Event[] };
+
+const SRC_NOTE: Record<string, string> = { plan: "from plan", free: "free tier", override: "custom cap" };
 
 const num = (n: number) => n.toLocaleString("en-IN");
 const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
@@ -36,14 +40,25 @@ export default function UsagePage() {
       <p className="font-mono text-xs uppercase tracking-widest text-accent">Telemetry</p>
       <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">Usage</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Your workspace&apos;s AI spend, metered on two axes — Higgsfield credits for media and Claude tokens for
-        copy &amp; audits. Claude tokens are estimated (≈4 chars/token) until exact metering lands.
+        Your workspace&apos;s AI spend for the current billing period, metered on two axes — Higgsfield credits for media
+        and Claude tokens for copy &amp; audits. Allowances come from your plan and reset each cycle. Claude tokens are
+        estimated (≈4 chars/token) until exact metering lands.
       </p>
 
+      {/* Plan + period */}
+      <div className="mt-5 flex flex-wrap items-center gap-3 rounded border border-slate-200 bg-white px-4 py-3 text-sm">
+        <span className="rounded bg-blue-50 px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-accent">{data.plan.name} plan</span>
+        <span className="text-slate-500">
+          Billing period <span className="font-medium text-slate-700">{new Date(data.period.start).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+          {" – "}<span className="font-medium text-slate-700">{new Date(data.period.end).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+        </span>
+        <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">resets {new Date(data.period.end).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
+      </div>
+
       {/* Budgets */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <BudgetCard title="Higgsfield credits" unit="credits" b={data.credits} fmt={num} />
-        <BudgetCard title="Claude tokens" unit="tokens" b={data.claude} fmt={compact} note={data.claude.capIsDefault ? "plan default" : undefined} />
+        <BudgetCard title="Claude tokens" unit="tokens" b={data.claude} fmt={compact} />
       </div>
 
       {/* Ledger */}
@@ -82,8 +97,9 @@ export default function UsagePage() {
   );
 }
 
-function BudgetCard({ title, unit, b, fmt, note }: { title: string; unit: string; b: Budget; fmt: (n: number) => string; note?: string }) {
+function BudgetCard({ title, unit, b, fmt }: { title: string; unit: string; b: Budget; fmt: (n: number) => string }) {
   const pct = b.cap ? Math.min(100, Math.round((b.used / b.cap) * 100)) : 0;
+  const note = SRC_NOTE[b.source];
   return (
     <div className="rounded border border-slate-200 bg-white p-5">
       <div className="flex items-baseline justify-between">
