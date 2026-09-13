@@ -273,6 +273,7 @@ model organizations {
   audit_logs              audit_logs[]
   contacts                contacts[]
   integration_tokens      integration_tokens[]
+  landing_pages           landing_pages[]
   org_members             org_members[]
   projects                projects[]
   subscriptions           subscriptions?
@@ -314,6 +315,7 @@ model projects {
   assets              assets[]
   client_profiles     ClientProfile[]
   email_campaigns     email_campaigns[]
+  landing_pages       landing_pages[]
   project_cursorrules project_cursorrules?
   users               users                @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
   organizations       organizations        @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -574,4 +576,24 @@ model subscriptions {
   organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([org_id], map: "idx_subscriptions_org")
+}
+
+model landing_pages {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id        String        @db.Uuid
+  project_id    String        @db.Uuid
+  title         String
+  brief         String?
+  status        String        @default("queued")
+  html          String?
+  error         String?
+  created_by    String?       @db.Uuid
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime      @default(now()) @db.Timestamptz(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  projects      projects      @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([org_id], map: "idx_landing_pages_org")
+  @@index([project_id, created_at(sort: Desc)], map: "idx_landing_pages_project")
+  @@index([status], map: "idx_landing_pages_status")
 }

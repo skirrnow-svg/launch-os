@@ -123,3 +123,17 @@ export async function periodUsage(orgId: string, period: Period): Promise<{ cred
 
 /** Valid plan slugs for admin assignment. */
 export const PLAN_SLUGS = BILLING_TIERS.map((t) => t.slug) as string[];
+
+/**
+ * Max landing / web pages a workspace may hold, by account type. Platform admins
+ * are unlimited. solo 1 · sme 2 · agency 20 · admin ∞. Returns Infinity for
+ * unlimited (callers treat any value <= existing count as "at quota").
+ */
+export function webPageQuota(accountType: string | null | undefined, isAdmin: boolean): number {
+  if (isAdmin) return Infinity;
+  switch (accountType) {
+    case "agency": return 20;
+    case "sme": return 2;
+    default: return 1; // solo / unknown / free
+  }
+}

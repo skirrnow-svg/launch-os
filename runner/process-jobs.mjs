@@ -204,6 +204,47 @@ async function processPost(p) {
   console.log(`[runner] post ${p.id} copy ready`);
 }
 
+// ---- Landing / web pages (Claude → self-contained responsive HTML) ----------
+async function claimLandingPage() {
+  const rows = await prisma.$queryRawUnsafe(`
+    UPDATE landing_pages SET status='generating', updated_at=now()
+    WHERE id = (
+      SELECT id FROM landing_pages
+      WHERE status='queued'
+      ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
+    ) RETURNING id, org_id, title, brief
+  `);
+  return rows[0] || null;
+}
+function extractHtml(text) {
+  const t = String(text || "").trim().replace(/^```(?:html)?/i, "").replace(/```$/, "").trim();
+  const lower = t.toLowerCase();
+  const doctype = lower.indexOf("<!doctype");
+  const start = doctype >= 0 ? doctype : lower.indexOf("<html");
+  const end = lower.lastIndexOf("</html>");
+  if (start >= 0 && end >= 0) return t.slice(start, end + 7);
+  return t;
+}
+async function processLandingPage(lp) {
+  const brief = (lp.brief || "").trim();
+  const prompt = `Landing page title: ${lp.title}\n\n${brief ? `Brief:\n${brief}` : "No extra brief — infer a compelling, conversion-focused page from the title."}`;
+  const out = claude(
+    prompt,
+    "You are an expert conversion copywriter and front-end designer. Produce a COMPLETE, self-contained, responsive HTML5 landing page as a single file. Requirements: one <!DOCTYPE html> document; ALL CSS in a <style> tag (no external stylesheets, fonts, scripts or images — use CSS gradients/shapes, inline SVG or emoji instead); semantic, accessible, mobile-first; a hero with headline + subhead + primary CTA, a few benefit/feature sections, a social-proof placeholder, and a footer. Modern, clean, high-contrast. Return ONLY the HTML — no markdown fences, no commentary.",
+  );
+  const html = extractHtml(out);
+  if (!html || html.length < 80) throw new Error("Landing page generation returned no usable HTML.");
+  await prisma.landing_pages.update({
+    where: { id: lp.id },
+    data: { status: "ready", html, error: null, updated_at: new Date() },
+  });
+  await recordUsage(lp.org_id, {
+    provider: "claude", kind: "website", model: process.env.CLAUDE_CODE_MODEL || "sonnet",
+    tokens: estTokens(prompt, out), estimated: true, refType: "landing_page", refId: lp.id,
+  });
+  console.log(`[runner] landing page ${lp.id} ready (${html.length} bytes)`);
+}
+
 /** Per-org budget: returns remaining credits, or null for unlimited. */
 async function remainingOrgCredits(orgId) {
   const org = await prisma.organizations.findUnique({
@@ -617,6 +658,20 @@ async function main() {
     } catch (e) {
       await prisma.social_posts.update({ where: { id: p.id }, data: { status: "draft", generation_brief: null } });
       console.error(`[runner] post ${p.id} error: ${e instanceof Error ? e.message : e}`);
+    }
+    processed += 1;
+  }
+
+  // 4) Landing / web pages (Claude → self-contained HTML).
+  while (processed < MAX_JOBS) {
+    const lp = await claimLandingPage();
+    if (!lp) break;
+    try {
+      await processLandingPage(lp);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      await prisma.landing_pages.update({ where: { id: lp.id }, data: { status: "error", error: message, updated_at: new Date() } });
+      console.error(`[runner] landing page ${lp.id} error: ${message}`);
     }
     processed += 1;
   }

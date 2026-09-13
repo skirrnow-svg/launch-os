@@ -86,6 +86,7 @@ export default function ProjectDetailPage() {
       <nav className="mt-3 flex flex-wrap gap-2">
         {[
           { slug: "assets", label: "Assets" },
+          { slug: "landing", label: "Landing Pages" },
           { slug: "emails", label: "Emails" },
           { slug: "social", label: "Social" },
           { slug: "metrics", label: "Metrics" },
