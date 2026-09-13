@@ -105,6 +105,10 @@ export default function LandingPagesPage() {
           <p className="font-mono text-xs uppercase tracking-widest text-accent">Graphics, Video &amp; Web</p>
           <h1 className="mt-1 font-display text-2xl font-bold tracking-tight">Landing pages</h1>
           <p className="mt-1 text-sm text-slate-500">Generate a complete, responsive landing page from a title and a short brief. Minimal cost — built as self-contained HTML.</p>
+          <a href="https://claude.ai/code/artifact/fbcee9ec-7fa9-4e14-9603-8f71b0ac872d" target="_blank" rel="noopener noreferrer"
+            className="mt-1 inline-flex items-center gap-1 text-sm font-medium text-accent hover:underline">
+            How to publish on your own domain →
+          </a>
         </div>
         {quota && (
           <div className="rounded border border-slate-200 bg-white px-4 py-2 text-right">
