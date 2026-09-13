@@ -1,7 +1,8 @@
 import Link from "next/link";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
-import { BILLING_TIERS } from "@/lib/billing/plans";
+import type { BillingTier } from "@/lib/billing/plans";
+import { effectiveTiers, getSignupOffer } from "@/lib/billing/pricing";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -109,17 +110,20 @@ const FEATURES = [
   },
 ];
 
-// Pricing is derived from the single billing catalog (src/lib/billing/plans.ts),
-// so the marketing page and the in-app billing screen never drift. INR (₹).
-const PRICING = BILLING_TIERS.map((t, i) => ({
-  name: t.name,
-  price: inr(t.priceInr),
-  period: "/mo",
-  tagline: t.tagline,
-  features: [`${t.creditsPerMonth} credits / month`, ...t.features],
-  cta: `Choose ${t.name}`,
-  highlight: i === 1, // Growth = most popular
-}));
+// Pricing is derived from the effective billing catalog (code defaults +
+// platform-admin overrides), so the marketing page and the in-app billing
+// screen never drift. INR (₹).
+function buildPricing(tiers: BillingTier[]) {
+  return tiers.map((t, i) => ({
+    name: t.name,
+    price: inr(t.priceInr),
+    period: "/mo",
+    tagline: t.tagline,
+    features: [`${t.creditsPerMonth} credits / month`, ...t.features],
+    cta: `Choose ${t.name}`,
+    highlight: i === 1, // Growth = most popular
+  }));
+}
 
 const FAQ = [
   {
@@ -144,7 +148,12 @@ const FAQ = [
   },
 ];
 
-export default function HomePage() {
+// ISR: serve cached HTML but pick up admin pricing/offer edits within ~30s.
+export const revalidate = 30;
+
+export default async function HomePage() {
+  const [tiers, offer] = await Promise.all([effectiveTiers(), getSignupOffer()]);
+  const PRICING = buildPricing(tiers);
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <SiteHeader />
@@ -323,6 +332,12 @@ export default function HomePage() {
           The Product-to-Ad audit is free. Paid plans set your monthly media-credit allowance and unlock
           full-resolution video, multi-channel execution and white-label. Billed monthly in Indian Rupees.
         </p>
+        {offer.offerActive && offer.offerLabel && (
+          <div className="mt-6 inline-flex items-center gap-2 rounded border border-accent bg-blue-50 px-4 py-2.5 text-sm font-medium text-accent">
+            <span aria-hidden className="font-bold">★</span>
+            {offer.offerLabel}
+          </div>
+        )}
         <div className="mt-10 grid gap-6 lg:grid-cols-3">
           {PRICING.map((p) => (
             <div

@@ -250,9 +250,6 @@ model organizations {
   slug                    String               @unique
   logo_url                String?
   plan                    String               @default("free")
-  account_type            String               @default("solo")
-  brand_name              String?
-  brand_color             String?
   stripe_customer_id      String?
   stripe_subscription_id  String?
   billing_email           String?
@@ -267,6 +264,9 @@ model organizations {
   clerk_org_id            String?              @unique
   credit_cap              Int?
   credits_used            Decimal              @default(0) @db.Decimal
+  account_type            String               @default("solo")
+  brand_name              String?
+  brand_color             String?
   api_usage               api_usage[]
   audit_logs              audit_logs[]
   contacts                contacts[]
@@ -502,4 +502,33 @@ model ClientProfile {
 
   @@index([org_id], map: "idx_client_profiles_org_id")
   @@map("client_profiles")
+}
+
+model coupons {
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  code            String    @unique
+  kind            String    @default("percent")
+  value           Int       @default(0)
+  applies_to      String    @default("all")
+  max_redemptions Int?
+  redeemed_count  Int       @default(0)
+  expires_at      DateTime? @db.Timestamptz(6)
+  active          Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model platform_settings {
+  id                     String   @id @default("singleton")
+  welcome_credits        Int      @default(0)
+  intro_discount_percent Int      @default(0)
+  offer_active           Boolean  @default(false)
+  offer_label            String?
+  updated_at             DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model pricing_overrides {
+  slug              String   @id
+  price_inr         Int?
+  credits_per_month Int?
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
 }

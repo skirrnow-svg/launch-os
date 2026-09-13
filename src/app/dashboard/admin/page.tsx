@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PricingOffers from "@/components/admin/PricingOffers";
+import Coupons from "@/components/admin/Coupons";
 
 /**
- * Admin → Organizations. A platform-admin-only console (the API enforces it via
- * requireAdmin) that ordinary tenants never see. Admins can set each org's
- * account type — promoting one to "agency" unlocks its white-label branding —
- * and adjust its monthly generation-credit cap.
+ * Admin → Organizations, Pricing & offers, Coupons. A platform-admin-only
+ * console (the API enforces it via requireAdmin) that ordinary tenants never
+ * see. Admins can set each org's account type — promoting one to "agency"
+ * unlocks its white-label branding — adjust its monthly generation-credit cap,
+ * edit base plan pricing, configure a signup offer, and manage discount codes.
  */
 type Org = {
   id: string;
@@ -134,6 +137,9 @@ export default function AdminOrgsPage() {
           </tbody>
         </table>
       </div>
+
+      <PricingOffers />
+      <Coupons />
     </div>
   );
 }

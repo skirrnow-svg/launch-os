@@ -7,16 +7,29 @@ import { BILLING_TIERS } from "@/lib/billing/plans";
  * Billing / plans page.
  *
  * Renders the subscription tier catalog and the org's current credit allowance.
- * The "Choose plan" CTA is intentionally INERT for now: checkout is wired only
- * once the Razorpay account is chosen and keys are configured. No Razorpay code
- * or keys are referenced here — this page is safe to ship account-undecided.
+ * Tier prices/credits come from /api/public/pricing (code defaults + any
+ * platform-admin overrides), falling back to the built-in catalog if that call
+ * fails. The "Choose plan" CTA is intentionally INERT for now: checkout is wired
+ * only once the Razorpay account is chosen and keys are configured.
  */
 type Budget = { cap: number | null; used: number; remaining: number | null };
+type Tier = {
+  slug: string; name: string; priceInr: number; creditsPerMonth: number;
+  approxVideosPerMonth: number; tagline: string; features: string[];
+};
+type Offer = { offerLabel: string | null } | null;
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+const FALLBACK_TIERS: Tier[] = BILLING_TIERS.map((t) => ({
+  slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth,
+  approxVideosPerMonth: t.approxVideosPerMonth, tagline: t.tagline, features: t.features,
+}));
+
 export default function BillingPage() {
   const [budget, setBudget] = useState<Budget | null>(null);
+  const [tiers, setTiers] = useState<Tier[]>(FALLBACK_TIERS);
+  const [offer, setOffer] = useState<Offer>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -29,6 +42,14 @@ export default function BillingPage() {
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
+    fetch("/api/public/pricing")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!active) return;
+        if (Array.isArray(d.tiers) && d.tiers.length) setTiers(d.tiers);
+        setOffer(d.offer ?? null);
+      })
+      .catch(() => { /* keep fallback */ });
     return () => {
       active = false;
     };
@@ -43,6 +64,13 @@ export default function BillingPage() {
       <p className="text-slate-500 mt-1">
         Choose a monthly plan. Each plan sets how many sample concept videos your workspace can auto-produce.
       </p>
+
+      {offer?.offerLabel && (
+        <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700">
+          <span aria-hidden>★</span>
+          {offer.offerLabel}
+        </div>
+      )}
 
       {/* Current allowance */}
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 flex flex-wrap items-center gap-x-8 gap-y-3">
@@ -62,7 +90,7 @@ export default function BillingPage() {
 
       {/* Tier cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        {BILLING_TIERS.map((t) => (
+        {tiers.map((t) => (
           <div
             key={t.slug}
             className="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col"
