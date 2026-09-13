@@ -264,12 +264,18 @@ model organizations {
   clerk_org_id            String?              @unique
   credit_cap              Int?
   credits_used            Decimal              @default(0) @db.Decimal
+  account_type            String               @default("solo")
+  brand_name              String?
+  brand_color             String?
+  claude_tokens_used      BigInt               @default(0)
+  claude_token_cap        BigInt?
   api_usage               api_usage[]
   audit_logs              audit_logs[]
   contacts                contacts[]
   integration_tokens      integration_tokens[]
   org_members             org_members[]
   projects                projects[]
+  usage_events            usage_events[]
 
   @@index([slug], map: "idx_organizations_slug")
   @@index([stripe_customer_id], map: "idx_organizations_stripe_customer_id")
@@ -399,6 +405,7 @@ model users {
   projects                                  projects[]
   segments                                  segments[]
   social_posts                              social_posts[]
+  usage_events                              usage_events[]
   workflows                                 workflows[]
 
   @@index([auth_id], map: "idx_users_auth_id")
@@ -473,10 +480,12 @@ model Lead {
   verification      Json?
   status            String         @default("PENDING")
   client_profile_id String?        @unique
-  client_profile    ClientProfile? @relation(fields: [client_profile_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   created_at        DateTime       @default(now()) @db.Timestamp(6)
+  source            String         @default("inbound")
+  auto_video        Boolean        @default(true)
+  client_profile    ClientProfile? @relation(fields: [client_profile_id], references: [id], onUpdate: NoAction)
 
-  @@index([org_id, status])
+  @@index([org_id, status], map: "idx_leads_org_id_status")
   @@map("leads")
 }
 
@@ -491,10 +500,62 @@ model ClientProfile {
   niche            String
   brand_guidelines Json?
   project_id       String   @db.Uuid
+  created_at       DateTime @default(now()) @db.Timestamp(6)
   project          projects @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   lead             Lead?
-  created_at       DateTime @default(now()) @db.Timestamp(6)
 
-  @@index([org_id])
+  @@index([org_id], map: "idx_client_profiles_org_id")
   @@map("client_profiles")
+}
+
+model coupons {
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  code            String    @unique
+  kind            String    @default("percent")
+  value           Int       @default(0)
+  applies_to      String    @default("all")
+  max_redemptions Int?
+  redeemed_count  Int       @default(0)
+  expires_at      DateTime? @db.Timestamptz(6)
+  active          Boolean   @default(true)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model platform_settings {
+  id                     String   @id @default("singleton")
+  welcome_credits        Int      @default(0)
+  intro_discount_percent Int      @default(0)
+  offer_active           Boolean  @default(false)
+  offer_label            String?
+  updated_at             DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model pricing_overrides {
+  slug              String   @id
+  price_inr         Int?
+  credits_per_month Int?
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model usage_events {
+  id            String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id        String        @db.Uuid
+  user_id       String?       @db.Uuid
+  provider      String
+  kind          String
+  model         String?
+  credits       Decimal       @default(0) @db.Decimal
+  tokens        BigInt        @default(0)
+  estimated     Boolean       @default(false)
+  status        String        @default("ok")
+  ref_type      String?
+  ref_id        String?
+  metadata      Json?
+  created_at    DateTime      @default(now()) @db.Timestamptz(6)
+  organizations organizations @relation(fields: [org_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users         users?        @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at(sort: Desc)], map: "idx_usage_events_created")
+  @@index([org_id, created_at(sort: Desc)], map: "idx_usage_events_org_created")
+  @@index([provider], map: "idx_usage_events_provider")
 }
