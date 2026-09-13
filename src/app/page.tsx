@@ -119,7 +119,11 @@ function buildPricing(tiers: BillingTier[]) {
     price: inr(t.priceInr),
     period: "/mo",
     tagline: t.tagline,
-    features: [`${t.creditsPerMonth} credits / month`, ...t.features],
+    features: [
+      `${t.creditsPerMonth} media credits / month`,
+      `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`,
+      ...t.features,
+    ],
     cta: `Choose ${t.name}`,
     highlight: i === 1, // Growth = most popular
   }));

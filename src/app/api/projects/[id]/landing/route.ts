@@ -18,6 +18,12 @@ async function ensureProject(id: string, orgId: string) {
   return prisma.projects.findFirst({ where: { id, org_id: orgId, deleted_at: null } });
 }
 
+/** The org's active plan slug (drives the landing quota), or null if none. */
+async function activePlanSlug(orgId: string): Promise<string | null> {
+  const sub = await prisma.subscriptions.findUnique({ where: { org_id: orgId } }).catch(() => null);
+  return sub && (sub.status === "active" || sub.status === "trialing") ? sub.plan_slug : null;
+}
+
 /** GET — list the project's landing pages + the workspace's quota usage. */
 export async function GET(_request: Request, { params }: Ctx) {
   const { user, org } = await getContext();
@@ -25,7 +31,7 @@ export async function GET(_request: Request, { params }: Ctx) {
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const isAdmin = isPlatformAdmin(user.email);
-  const quota = webPageQuota(org.account_type, isAdmin);
+  const quota = webPageQuota(org.account_type, isAdmin, await activePlanSlug(org.id));
   const [pages, used] = await Promise.all([
     prisma.landing_pages.findMany({
       where: { project_id: project.id },
@@ -54,11 +60,11 @@ export async function POST(request: Request, { params }: Ctx) {
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const isAdmin = isPlatformAdmin(user.email);
-  const quota = webPageQuota(org.account_type, isAdmin);
+  const quota = webPageQuota(org.account_type, isAdmin, await activePlanSlug(org.id));
   const used = await prisma.landing_pages.count({ where: { org_id: org.id } });
   if (used >= quota) {
     return NextResponse.json({
-      error: `Your ${org.account_type} plan includes ${quota} landing page${quota === 1 ? "" : "s"}. Delete one or upgrade to add more.`,
+      error: `Your plan includes ${quota} landing page${quota === 1 ? "" : "s"}. Delete one or upgrade to add more.`,
       code: "QUOTA",
     }, { status: 403 });
   }

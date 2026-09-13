@@ -17,7 +17,7 @@ export const GET = withErrors<unknown>(async () => {
     tiers: tiers.map((t) => ({
       slug: t.slug, name: t.name, priceInr: t.priceInr, amountPaise: t.amountPaise,
       creditsPerMonth: t.creditsPerMonth, approxVideosPerMonth: t.approxVideosPerMonth,
-      tagline: t.tagline, features: t.features,
+      landingPages: t.landingPages, tagline: t.tagline, features: t.features,
     })),
     // Only surface the offer to the public when it's actually switched on.
     offer: offer.offerActive ? offer : null,

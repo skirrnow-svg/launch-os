@@ -15,7 +15,7 @@ import { BILLING_TIERS } from "@/lib/billing/plans";
 type Budget = { cap: number | null; used: number; remaining: number | null };
 type Tier = {
   slug: string; name: string; priceInr: number; creditsPerMonth: number;
-  approxVideosPerMonth: number; tagline: string; features: string[];
+  approxVideosPerMonth: number; landingPages: number; tagline: string; features: string[];
 };
 type Offer = { offerLabel: string | null } | null;
 
@@ -23,7 +23,7 @@ const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 const FALLBACK_TIERS: Tier[] = BILLING_TIERS.map((t) => ({
   slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth,
-  approxVideosPerMonth: t.approxVideosPerMonth, tagline: t.tagline, features: t.features,
+  approxVideosPerMonth: t.approxVideosPerMonth, landingPages: t.landingPages, tagline: t.tagline, features: t.features,
 }));
 
 export default function BillingPage() {
@@ -103,6 +103,9 @@ export default function BillingPage() {
             </div>
             <div className="mt-1 text-sm font-medium text-indigo-600">
               {t.creditsPerMonth} credits · ~{t.approxVideosPerMonth} videos / mo
+            </div>
+            <div className="mt-0.5 text-sm text-slate-500">
+              {t.landingPages} landing {t.landingPages === 1 ? "page" : "pages"}
             </div>
             <ul className="mt-4 flex-1 space-y-2">
               {t.features.map((f) => (

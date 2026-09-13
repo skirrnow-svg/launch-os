@@ -17,7 +17,7 @@
  * period data; this resolver doesn't change.
  */
 import { prisma } from "@/lib/db";
-import { BILLING_TIERS, FREE_CLAUDE_TOKENS, tierBySlug } from "./plans";
+import { BILLING_TIERS, FREE_CLAUDE_TOKENS, landingPagesForPlan, tierBySlug } from "./plans";
 
 export type Period = { start: Date; end: Date };
 
@@ -125,12 +125,14 @@ export async function periodUsage(orgId: string, period: Period): Promise<{ cred
 export const PLAN_SLUGS = BILLING_TIERS.map((t) => t.slug) as string[];
 
 /**
- * Max landing / web pages a workspace may hold, by account type. Platform admins
- * are unlimited. solo 1 · sme 2 · agency 20 · admin ∞. Returns Infinity for
- * unlimited (callers treat any value <= existing count as "at quota").
+ * Max landing / web pages a workspace may hold. Platform admins are unlimited.
+ * When an active PLAN is in use its landing allowance drives the quota
+ * (Starter 1 · Growth 2 · Scale 20); otherwise the account-type default applies
+ * (solo 1 · sme 2 · agency 20). Returns Infinity for unlimited.
  */
-export function webPageQuota(accountType: string | null | undefined, isAdmin: boolean): number {
+export function webPageQuota(accountType: string | null | undefined, isAdmin: boolean, planSlug?: string | null): number {
   if (isAdmin) return Infinity;
+  if (planSlug) return landingPagesForPlan(planSlug);
   switch (accountType) {
     case "agency": return 20;
     case "sme": return 2;

@@ -35,6 +35,11 @@ export type BillingTier = {
    * allowance so copy work is rarely the bottleneck.
    */
   claudeTokensPerMonth: number;
+  /**
+   * Landing / web pages included on the plan. Built as self-contained HTML at
+   * minimum cost (0 Higgsfield credits), so this is a simple per-plan quota.
+   */
+  landingPages: number;
   /** Roughly how many sample concept videos that buys (~6 credits each). */
   approxVideosPerMonth: number;
   /** Env var holding this tier's Razorpay Plan id, resolved at runtime. */
@@ -58,6 +63,7 @@ export const BILLING_TIERS: BillingTier[] = [
     amountPaise: 4999 * 100,
     creditsPerMonth: 30,
     claudeTokensPerMonth: 750000,
+    landingPages: 1,
     approxVideosPerMonth: 5,
     planIdEnvVar: "RAZORPAY_PLAN_STARTER",
     tagline: "For solopreneurs getting started.",
@@ -75,6 +81,7 @@ export const BILLING_TIERS: BillingTier[] = [
     amountPaise: 12999 * 100,
     creditsPerMonth: 90,
     claudeTokensPerMonth: 2000000,
+    landingPages: 2,
     approxVideosPerMonth: 15,
     planIdEnvVar: "RAZORPAY_PLAN_GROWTH",
     tagline: "For busy solopreneurs & small agencies.",
@@ -92,6 +99,7 @@ export const BILLING_TIERS: BillingTier[] = [
     amountPaise: 24999 * 100,
     creditsPerMonth: 180,
     claudeTokensPerMonth: 6000000,
+    landingPages: 20,
     approxVideosPerMonth: 30,
     planIdEnvVar: "RAZORPAY_PLAN_SCALE",
     tagline: "For agencies running high lead volume.",
@@ -109,6 +117,15 @@ export const BILLING_TIERS: BillingTier[] = [
  * CLI, and a comfortable free allowance keeps the lead-gen wedge frictionless.
  */
 export const FREE_CLAUDE_TOKENS = 150_000;
+
+/** Landing / web pages on the free tier (no active plan). */
+export const FREE_LANDING_PAGES = 1;
+
+/** Landing-page allowance for a plan slug (falls back to the free allowance). */
+export function landingPagesForPlan(slug: string | null | undefined): number {
+  const t = slug ? tierBySlug(slug) : null;
+  return t ? t.landingPages : FREE_LANDING_PAGES;
+}
 
 /** Look up a tier by its internal slug. */
 export function tierBySlug(slug: string): BillingTier | null {
