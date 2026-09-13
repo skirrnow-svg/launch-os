@@ -143,6 +143,10 @@ const FAQ = [
     a: "Yes. Agencies get multi-tenant client isolation, a custom domain (marketing.youragency.com), agency-branded PDF reports and client portals, and a sub-account per client. Your clients never see SkirrNow.",
   },
   {
+    q: "Can I use the landing pages on my own domain?",
+    a: "Yes. Each landing page is a single self-contained HTML file — preview it in-app, then download it and host it anywhere: your own web host (cPanel/File Manager), or a drag-and-drop static host like Netlify, Vercel or Cloudflare Pages, then point your domain or subdomain at it. Just edit the call-to-action link to your destination before publishing. One-click hosted publishing is on the roadmap.",
+  },
+  {
     q: "Does anything get sent automatically?",
     a: "No outbound send is automatic. SkirrNow drafts, renders and previews; delivery only happens after your one-click approval.",
   },
