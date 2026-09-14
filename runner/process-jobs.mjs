@@ -145,7 +145,8 @@ async function claimCampaign() {
       SELECT id FROM email_campaigns
       WHERE status='queued' AND generation_brief IS NOT NULL
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, name, subject, generation_brief, org_id
+    ) RETURNING id, name, subject, generation_brief,
+      (SELECT p.org_id FROM projects p WHERE p.id = email_campaigns.project_id) AS org_id
   `);
   return rows[0] || null;
 }
@@ -178,7 +179,8 @@ async function claimPost() {
       SELECT id FROM social_posts
       WHERE status='queued' AND generation_brief IS NOT NULL
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, content, generation_brief, org_id
+    ) RETURNING id, content, generation_brief,
+      (SELECT p.org_id FROM projects p WHERE p.id = social_posts.project_id) AS org_id
   `);
   return rows[0] || null;
 }
