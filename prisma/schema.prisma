@@ -525,12 +525,17 @@ model coupons {
 }
 
 model platform_settings {
-  id                     String   @id @default("singleton")
-  welcome_credits        Int      @default(0)
-  intro_discount_percent Int      @default(0)
-  offer_active           Boolean  @default(false)
-  offer_label            String?
-  updated_at             DateTime @default(now()) @db.Timestamptz(6)
+  id                          String   @id @default("singleton")
+  welcome_credits             Int      @default(0)
+  intro_discount_percent      Int      @default(0)
+  offer_active                Boolean  @default(false)
+  offer_label                 String?
+  // AI Video Prompt Builder access gates, by the org plan's monthly credit
+  // allowance. Guided/basic path unlocks at >= basic_min; the Advanced controls
+  // unlock at >= advanced_min. Admin-editable from the pricing console.
+  builder_basic_min_credits    Int      @default(10)
+  builder_advanced_min_credits Int      @default(25)
+  updated_at                  DateTime @default(now()) @db.Timestamptz(6)
 }
 
 model pricing_overrides {

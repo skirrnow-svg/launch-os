@@ -188,7 +188,17 @@ function ChipGroup({
   );
 }
 
-export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
+export type BuilderAccessProp = {
+  level: "none" | "basic" | "advanced";
+  basicMin: number;
+  advancedMin: number;
+};
+
+export default function VideoPromptBuilder({ access }: { access: BuilderAccessProp }) {
+  const canBasic = access.level !== "none"; // guided path usable
+  const canAdvanced = access.level === "advanced"; // pro controls usable
+  const isPaid = canBasic; // Generate is allowed from the basic tier up
+
   const [open, setOpen] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
@@ -348,6 +358,20 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
             answer a couple of questions, and generate.
           </p>
 
+          {!canBasic && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span className="font-semibold">Locked preview.</span> The AI Video Prompt Builder
+              unlocks on a plan of at least {access.basicMin} credits/month, and the Advanced pro
+              controls at {access.advancedMin} credits/month. Have a look below, then upgrade to use it.{" "}
+              <Link href="/dashboard/billing" className="font-semibold text-indigo-600 hover:underline">
+                See plans →
+              </Link>
+            </div>
+          )}
+
+          {/* STEP 1 + 2 — the guided (basic) path. Locked for below-basic plans. */}
+          <fieldset disabled={!canBasic} className="m-0 border-0 p-0 disabled:opacity-60">
+
           {/* STEP 1 — style presets */}
           <div className="mb-5">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -474,20 +498,30 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
             </p>
           </div>
 
+          </fieldset>
+
           {/* Advanced — everything technical lives here, collapsed by default */}
           <div className="mb-5 rounded-lg border border-slate-200 bg-white">
             <button
               type="button"
-              onClick={() => setAdvanced((a) => !a)}
-              className="flex w-full items-center justify-between px-4 py-2.5 text-left"
+              onClick={() => { if (canAdvanced) setAdvanced((a) => !a); }}
+              disabled={!canAdvanced}
+              className="flex w-full items-center justify-between px-4 py-2.5 text-left disabled:cursor-not-allowed"
             >
               <span className="text-xs font-semibold text-slate-600">
                 Advanced controls (optional) — cinema kit, fine-tuning &amp; safety
+                {!canAdvanced && (
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">
+                    🔒 unlocks at {access.advancedMin} credits/mo
+                  </span>
+                )}
               </span>
-              <span className="text-xs font-semibold text-indigo-600">{advanced ? "Hide −" : "Show +"}</span>
+              <span className="text-xs font-semibold text-indigo-600">
+                {!canAdvanced ? "Locked" : advanced ? "Hide −" : "Show +"}
+              </span>
             </button>
 
-            {advanced && (
+            {canAdvanced && advanced && (
               <div className="border-t border-slate-100 p-4">
                 {/* Cinema kit */}
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { getEntitlement } from "@/lib/billing/entitlements";
+import { resolveBuilderAccess } from "@/lib/billing/builderGate";
 import { staticCreditEstimate, modelFor, triggerRunner } from "@/lib/jobs";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
@@ -55,15 +55,14 @@ async function ensureStudioProject(orgId: string, userId: string) {
 export const POST = withErrors(async (request: Request) => {
   const { user, org } = await getContext();
 
-  // Paid gate (admins pass for testing).
-  const ent = await getEntitlement(org);
-  const isPaid = ent.planSlug != null || isPlatformAdmin(user.email);
-  if (!isPaid) {
+  // Access gate — the builder unlocks at the admin-set basic credit threshold
+  // (admins pass for testing).
+  const access = await resolveBuilderAccess(org, isPlatformAdmin(user.email));
+  if (access.level === "none") {
     return NextResponse.json(
       {
         status: "upgrade-required",
-        error:
-          "Generating a video with the AI Prompt Builder is a paid feature. Upgrade a plan to unlock it.",
+        error: `Generating a video with the AI Prompt Builder needs a plan of at least ${access.basicMin} credits/month. Upgrade to unlock it.`,
       },
       { status: 402 },
     );

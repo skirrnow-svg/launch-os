@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
  */
 type Tier = { slug: string; name: string; priceInr: number; creditsPerMonth: number };
 type Offer = { welcomeCredits: number; introDiscountPercent: number; offerActive: boolean; offerLabel: string | null };
+type BuilderGate = { basicMin: number; advancedMin: number };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -17,8 +18,10 @@ export default function PricingOffers() {
   const [tiers, setTiers] = useState<Tier[] | null>(null);
   const [defaults, setDefaults] = useState<Tier[]>([]);
   const [offer, setOffer] = useState<Offer | null>(null);
+  const [gate, setGate] = useState<BuilderGate | null>(null);
   const [savingSlug, setSavingSlug] = useState("");
   const [savingOffer, setSavingOffer] = useState(false);
+  const [savingGate, setSavingGate] = useState(false);
   const [msg, setMsg] = useState("");
 
   async function load() {
@@ -29,6 +32,7 @@ export default function PricingOffers() {
       setTiers(d.tiers ?? []);
       setDefaults(d.defaults ?? []);
       setOffer(d.offer ?? null);
+      setGate(d.builderGate ?? null);
     } catch { /* non-fatal */ }
   }
   useEffect(() => { load(); }, []);
@@ -59,6 +63,24 @@ export default function PricingOffers() {
     if (!def) return;
     setTier(slug, { priceInr: def.priceInr, creditsPerMonth: def.creditsPerMonth });
     await saveTier({ ...def });
+  }
+
+  async function saveGate() {
+    if (!gate) return;
+    setSavingGate(true); setMsg("");
+    try {
+      const res = await fetch("/api/admin/pricing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ builderGate: { basicMinCredits: gate.basicMin, advancedMinCredits: gate.advancedMin } }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Save failed.");
+      if (d.builderGate) setGate(d.builderGate);
+      setMsg("Saved builder access thresholds.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Save failed.");
+    } finally { setSavingGate(false); }
   }
 
   async function saveOffer() {
@@ -183,6 +205,40 @@ export default function PricingOffers() {
           <button onClick={saveOffer} disabled={savingOffer}
             className="mt-4 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
             {savingOffer ? "Saving…" : "Save offer"}
+          </button>
+        </div>
+      )}
+
+      {/* AI Video Prompt Builder access thresholds */}
+      <h3 className="mt-8 font-display text-lg font-bold tracking-tight">AI Video Prompt Builder access</h3>
+      <p className="mt-1 text-sm text-slate-500">
+        Gate the builder by a plan&apos;s monthly credit allowance. The guided (basic) path unlocks at the
+        basic threshold; the Advanced pro controls unlock at the higher threshold. A workspace whose plan
+        grants fewer credits sees the builder locked.
+      </p>
+      {gate && (
+        <div className="mt-4 rounded border border-slate-200 bg-white p-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
+                Basic (guided) unlocks at ≥ credits/mo
+              </label>
+              <input type="number" min={0} value={gate.basicMin}
+                onChange={(e) => setGate({ ...gate, basicMin: Number(e.target.value) })}
+                className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">
+                Advanced controls unlock at ≥ credits/mo
+              </label>
+              <input type="number" min={0} value={gate.advancedMin}
+                onChange={(e) => setGate({ ...gate, advancedMin: Number(e.target.value) })}
+                className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+            </div>
+          </div>
+          <button onClick={saveGate} disabled={savingGate}
+            className="mt-4 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
+            {savingGate ? "Saving…" : "Save thresholds"}
           </button>
         </div>
       )}

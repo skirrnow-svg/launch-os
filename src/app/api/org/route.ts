@@ -3,6 +3,7 @@ import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrgBudget } from "@/lib/credits";
 import { getEntitlement } from "@/lib/billing/entitlements";
+import { resolveBuilderAccess } from "@/lib/billing/builderGate";
 
 
 /**
@@ -14,12 +15,13 @@ import { getEntitlement } from "@/lib/billing/entitlements";
 
 export async function GET() {
   const { user, org } = await getContext();
-  const [projectCount, budget, ent] = await Promise.all([
+  const isAdmin = isPlatformAdmin(user.email);
+  const [projectCount, budget, ent, builder] = await Promise.all([
     prisma.projects.count({ where: { org_id: org.id, deleted_at: null } }),
     getOrgBudget(org.id),
     getEntitlement(org),
+    resolveBuilderAccess(org, isAdmin),
   ]);
-  const isAdmin = isPlatformAdmin(user.email);
   return NextResponse.json({
     org: {
       id: org.id,
@@ -37,6 +39,13 @@ export async function GET() {
       name: ent.planName,
       status: ent.status,
       isPaid: ent.planSlug != null || isAdmin,
+      // AI Video Prompt Builder access: "none" | "basic" | "advanced", plus the
+      // (admin-editable) credit thresholds so the UI can explain what unlocks what.
+      builder: {
+        level: builder.level,
+        basicMin: builder.basicMin,
+        advancedMin: builder.advancedMin,
+      },
     },
     projectCount,
     budget,

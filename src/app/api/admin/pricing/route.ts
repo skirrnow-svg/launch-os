@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 import { BILLING_TIERS } from "@/lib/billing/plans";
 import { effectiveTiers, getSignupOffer } from "@/lib/billing/pricing";
+import { getBuilderThresholds } from "@/lib/billing/builderGate";
 import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -39,11 +40,17 @@ export const GET = withErrors<unknown>(async () => {
   } catch (e) {
     return forbidden(e);
   }
-  const [tiers, offer] = await Promise.all([effectiveTiers(), getSignupOffer()]);
+  const [tiers, offer, builderGate] = await Promise.all([
+    effectiveTiers(),
+    getSignupOffer(),
+    getBuilderThresholds(),
+  ]);
   return NextResponse.json({
     tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
     defaults: BILLING_TIERS.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
     offer,
+    // AI Video Prompt Builder unlock thresholds (by plan monthly credits).
+    builderGate,
   });
 });
 
@@ -96,12 +103,36 @@ export const PATCH = withErrors<unknown>(async (request) => {
     touched = true;
   }
 
+  // AI Video Prompt Builder unlock thresholds (by plan monthly credits).
+  const builderGate = body.builderGate as Record<string, unknown> | undefined;
+  if (builderGate) {
+    const data: Record<string, unknown> = { updated_at: new Date() };
+    const basic = intOrNull(builderGate.basicMinCredits);
+    const advanced = intOrNull(builderGate.advancedMinCredits);
+    if (basic !== undefined && basic !== null) data.builder_basic_min_credits = basic;
+    if (advanced !== undefined && advanced !== null) data.builder_advanced_min_credits = advanced;
+    if (Object.keys(data).length > 1) {
+      await prisma.platform_settings.upsert({
+        where: { id: "singleton" },
+        update: data,
+        create: { id: "singleton", ...data },
+      });
+      await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "builderGate.update", resourceType: "builderGate", changes: { basic, advanced } });
+      touched = true;
+    }
+  }
+
   if (!touched) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
-  const [tiers, updatedOffer] = await Promise.all([effectiveTiers(), getSignupOffer()]);
+  const [tiers, updatedOffer, updatedGate] = await Promise.all([
+    effectiveTiers(),
+    getSignupOffer(),
+    getBuilderThresholds(),
+  ]);
   return NextResponse.json({
     ok: true,
     tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
     offer: updatedOffer,
+    builderGate: updatedGate,
   });
 });
