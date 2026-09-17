@@ -412,7 +412,7 @@ async function enqueueSampleVideo(projectId, actingUser, ctx) {
   const script = parseJsonish(
     claude(
       `Company: ${ctx.company_name}. Metro: ${ctx.metro_area}. Niche: ${ctx.niche}. Offer: ${ctx.core_offer}.`,
-      'You are a short-form video ad director. Return ONLY JSON {"hook": string, "script": string, "visual_prompt": string} — a scroll-stopping 1-line hook, a ~4-second script, and a concise visual prompt for an AI concept video (no on-screen text, no unverifiable claims).',
+      'You are a short-form video ad director generating for a FAST/low-res AI video model (4 seconds). Return ONLY JSON {"hook": string, "script": string, "visual_prompt": string} — a scroll-stopping 1-line hook, a ~4-second script, and a concise visual prompt. The visual_prompt MUST be robust to AI artifacts: choose ONE simple, continuous, physically-plausible shot (a slow push-in, orbit, or product hero on a surface). Avoid complex human-object interactions that distort at low res — no one mounting/dismounting a vehicle, no walking/running, no fast turns, no hands manipulating objects. If a person appears, keep them mostly static with natural, correct anatomy and orientation (feet forward, facing the camera or the product). No on-screen text and no unverifiable claims.',
     ),
   ) || {};
   const visual = str(script.visual_prompt) || `${ctx.niche} concept ad for ${ctx.company_name}, ${ctx.metro_area}, cinematic`;
