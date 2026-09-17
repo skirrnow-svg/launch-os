@@ -621,8 +621,12 @@ async function main() {
     processed += 1;
   }
 
-  // 1) Media assets (Higgsfield).
-  while (processed < MAX_JOBS) {
+  // 1) Media assets (Higgsfield). Skipped when the workflow preflight found
+  // auth down, so queued assets wait for re-auth instead of thrashing to
+  // `error` every run. HF_AUTH_OK is unset for local runs → attempt as before.
+  const hfDown = process.env.HF_AUTH_OK === "false";
+  if (hfDown) console.warn("[runner] Higgsfield auth is down — skipping media assets (left queued for re-auth).");
+  while (!hfDown && processed < MAX_JOBS) {
     const asset = await claimAsset();
     if (!asset) break;
     try {
