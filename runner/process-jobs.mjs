@@ -99,11 +99,18 @@ async function claimAsset() {
 
 function claude(prompt, system) {
   const full = system ? `${system}\n\n${prompt}` : prompt;
-  return execFileSync("claude", ["-p", "--max-turns", "1", "--model", process.env.CLAUDE_CODE_MODEL || "sonnet"], {
-    input: full,
-    encoding: "utf8",
-    maxBuffer: 16 * 1024 * 1024,
-  });
+  try {
+    return execFileSync("claude", ["-p", "--max-turns", "1", "--model", process.env.CLAUDE_CODE_MODEL || "sonnet"], {
+      input: full,
+      encoding: "utf8",
+      maxBuffer: 16 * 1024 * 1024,
+    });
+  } catch (e) {
+    // Surface the real reason (auth, rate limit, model) instead of a bare
+    // "Command failed", so runner logs are actually diagnosable.
+    const detail = ((e && (e.stderr || e.stdout)) || "").toString().trim();
+    throw new Error(`claude exit ${e && e.status}: ${detail ? detail.slice(0, 800) : e && e.message}`);
+  }
 }
 function parseJsonish(text) {
   const t = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
