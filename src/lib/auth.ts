@@ -17,7 +17,7 @@ import { prisma } from "./db";
  * owner + demo admin as built-in defaults so admin gating works even before the
  * env var is set. Admins reach the admin console; everyone else is a tenant.
  */
-const DEFAULT_ADMIN_EMAILS = ["dextor@idocs.in", "admin+clerk_test@skirrnow.app"];
+const DEFAULT_ADMIN_EMAILS = ["dextor@skirrnow.com", "admin+clerk_test@skirrnow.app"];
 export function adminEmails(): string[] {
   const fromEnv = (process.env.ADMIN_EMAILS || "")
     .split(",")

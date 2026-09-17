@@ -14,7 +14,7 @@ export const LEGAL = {
   address: "[Registered Office Address, City, State, PIN]", // fill in
   governingCity: "[City]", // seat of courts for jurisdiction clause — fill in
   governingLaw: "India",
-  contactEmail: "dextor@idocs.in",
+  contactEmail: "dextor@skirrnow.com",
   website: "https://skirrnow.com",
   updated: "14 September 2026",
 } as const;

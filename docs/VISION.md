@@ -1,6 +1,6 @@
 # SkirrNow Launch OS — Product Vision (canonical)
 
-_Owner: Dextor Colaco (dextor@idocs.in). Source of truth for positioning, architecture
+_Owner: Dextor Colaco (dextor@skirrnow.com). Source of truth for positioning, architecture
 intent, and the build roadmap. Read this instead of re-deriving the vision._
 
 Last set: 2026-09-12 (god, from owner's vision brief).
