@@ -1,68 +1,53 @@
 #!/usr/bin/env bash
 #
-# refresh-higgsfield-secret.sh
+# refresh-higgsfield-secret.sh  —  SkirrNow auth watchdog (run every ~12h)
 #
-# Keeps the GitHub Actions generation runner authenticated to Higgsfield with
-# NO manual secret-copying. Run on a schedule (Windows Task Scheduler, ~every
-# 12h). It:
-#   1. forces the Higgsfield CLI to refresh its access token from the
-#      (longer-lived) refresh token,
-#   2. verifies auth actually works,
-#   3. pushes the refreshed credentials to the repo's GitHub secrets.
+# 1. Refreshes the Higgsfield CLI token and pushes it to the GitHub secrets so
+#    the generation runner stays authenticated (no manual copying).
+# 2. Checks BOTH providers' auth health — Higgsfield directly, Claude via the
+#    status the runner writes to platform_settings — and, if either is down,
+#    emails all owner addresses ONE "MOST Important … needs Auth" alert
+#    (date-prefixed subject; de-duped to once per 24h).
 #
-# The ONE thing it cannot do is the browser OAuth login: when Higgsfield's
-# refresh token itself expires (~weekly, server-controlled), this script fails
-# loudly and you must run `higgsfield auth login` once, after which it resumes.
+# What still needs a human: the browser re-auth itself.
+#   Higgsfield (~weekly):  higgsfield auth login
+#   Claude    (~yearly):   claude setup-token   (then update the secret)
 #
-# Safe to run often; it never prints secret values.
+# Never prints secret values.
 set -uo pipefail
 
 export HOME="/c/Users/ADMIN"
 HF="/c/Users/ADMIN/bin/higgsfield"
+PROJECT="/c/Users/ADMIN/Documents/HarnessAgents/SkirrNow_LaunchOS/launch-os"
 CRED="$HOME/.config/higgsfield/credentials.json"
 CFG="$HOME/.config/higgsfield/config.json"
 REPO="skirrnow-svg/launch-os"
 LOG="$HOME/.config/higgsfield/secret-sync.log"
 ALERT_FLAG="$HOME/.config/higgsfield/.auth-alerted"
-# Email settings (git-ignored, outside the repo): NOTIFY_SMTP_USER, NOTIFY_SMTP_PASS
-# (a Gmail App Password), NOTIFY_TO (comma/semicolon-separated recipients).
+# Email settings (git-ignored): NOTIFY_SMTP_USER, NOTIFY_SMTP_PASS (Gmail App
+# Password), NOTIFY_TO (comma/semicolon-separated recipients).
 NOTIFY_ENV="$HOME/.config/higgsfield/notify.env"
 [ -f "$NOTIFY_ENV" ] && . "$NOTIFY_ENV"
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
-# 1) Refresh the access token (CLI refreshes from the stored refresh token when needed).
-"$HF" auth token >/dev/null 2>&1 || true
-
-# Best-effort Slack ping (webhook = first line of the repo's .env.local, if it's one).
-notify() {
-  local env_file="/c/Users/ADMIN/Documents/HarnessAgents/SkirrNow_LaunchOS/launch-os/.env.local"
-  local hook
-  hook="$(head -1 "$env_file" 2>/dev/null)"
-  case "$hook" in
-    https://hooks.slack.com/*)
-      curl -fsS -X POST -H 'Content-type: application/json' \
-        --data "{\"text\":\"$1\"}" "$hook" >/dev/null 2>&1 || true ;;
-  esac
-}
-
-# Email alert to all recipients. Subject is date-prefixed so an old alert is
-# obvious at a glance. No-op unless notify.env supplies SMTP creds.
+# Email all recipients that one or more providers need re-auth. $1 = which,
+# e.g. "Higgsfield", "Claude", or "Higgsfield and Claude".
 email_alert() {
   [ -n "${NOTIFY_SMTP_USER:-}" ] && [ -n "${NOTIFY_SMTP_PASS:-}" ] && [ -n "${NOTIFY_TO:-}" ] || return 0
-  local subject list rcpt_args rcpts_hdr body tmp rc
-  subject="$(date +%F) - MOST Important - SkirrNow HiggsField needs Auth"
+  local which="$1" subject list rcpt_args rcpts_hdr body tmp rc
+  subject="$(date +%F) - MOST Important - SkirrNow needs Auth: ${which}"
   list="${NOTIFY_TO//;/ }"; list="${list//,/ }"
   rcpt_args=""; for r in $list; do rcpt_args="$rcpt_args --mail-rcpt $r"; done
   rcpts_hdr="$(echo $list | sed 's/ /, /g')"
-  body="The SkirrNow generation runner cannot authenticate to Higgsfield.
-Image / video / landing-page media generation is PAUSED until you re-authenticate.
+  body="SkirrNow's generation runner can't authenticate to: ${which}.
+Affected generation is PAUSED until you re-authenticate (jobs are held, not lost).
 
-ACTION REQUIRED (about 30 seconds), on the SkirrNow host machine:
-  1. Run:  higgsfield auth login
-  2. Sign in in the browser that opens.
+ACTION REQUIRED (on the SkirrNow host machine):
+  - Higgsfield:  run  higgsfield auth login   (browser sign-in; ~weekly)
+  - Claude:      run  claude setup-token      (browser; ~yearly) then tell your operator to update the secret
 
-That is all. The runner re-syncs automatically within 12 hours, or run the
-Windows task 'SkirrNow-HiggsfieldSecretSync' to apply immediately.
+Only the provider(s) named in the subject need attention. Higgsfield re-syncs
+automatically within 12h once you log in.
 
 Detected at: $(ts)
 -- SkirrNow Ops (automated)"
@@ -81,31 +66,47 @@ Detected at: $(ts)
   rc=$?; rm -f "$tmp"; return $rc
 }
 
-# Email at most once per outage / per 24h (Slack still fires every run).
+# Email at most once per outage / per 24h.
 should_email() {
   [ -f "$ALERT_FLAG" ] || return 0
   local age; age=$(( $(date +%s) - $(stat -c %Y "$ALERT_FLAG" 2>/dev/null || echo 0) ))
   [ "$age" -ge 86400 ]
 }
 
-# 2) Verify auth is live before touching the secrets.
-if ! "$HF" account status >/dev/null 2>&1; then
-  echo "$(ts) FAIL: Higgsfield auth is dead (refresh token likely expired). Run: higgsfield auth login" | tee -a "$LOG" >&2
-  notify ":warning: *SkirrNow*: Higgsfield token expired — image/video generation is paused. Run \`higgsfield auth login\` on the host, then it auto-resumes within 12h (or run the sync task now)."
+# ---- Higgsfield: refresh token, verify, sync secrets ------------------------
+"$HF" auth token >/dev/null 2>&1 || true
+HF_OK=1
+if "$HF" account status >/dev/null 2>&1; then
+  if gh secret set HIGGSFIELD_CREDENTIALS --repo "$REPO" < "$CRED" \
+     && gh secret set HIGGSFIELD_CONFIG --repo "$REPO" < "$CFG"; then
+    echo "$(ts) OK: Higgsfield secrets synced — $("$HF" account status 2>/dev/null | head -1)" | tee -a "$LOG"
+  else
+    echo "$(ts) WARN: gh secret set failed (check gh auth status)" | tee -a "$LOG" >&2
+  fi
+else
+  HF_OK=0
+  echo "$(ts) FAIL: Higgsfield auth is dead — run: higgsfield auth login" | tee -a "$LOG" >&2
+fi
+
+# ---- Claude: read the runner's last-reported status from the DB ------------
+CLAUDE_DOWN=0
+DBSTATUS="$( cd "$PROJECT" 2>/dev/null && export DATABASE_URL="$(grep '^DATABASE_URL=' .env.local | head -1 | cut -d= -f2- | sed 's/^["'\'']//;s/["'\'']$//')" && node scripts/auth-watch.cjs 2>/dev/null )"
+case "$DBSTATUS" in
+  *CLAUDE=down*) CLAUDE_DOWN=1 ;;
+esac
+
+# ---- Unified alert ---------------------------------------------------------
+DOWN=""
+[ "$HF_OK" -eq 0 ] && DOWN="Higgsfield"
+[ "$CLAUDE_DOWN" -eq 1 ] && DOWN="${DOWN:+$DOWN and }Claude"
+
+if [ -n "$DOWN" ]; then
   if should_email; then
-    if email_alert; then echo "$(ts) email alert sent to $NOTIFY_TO" | tee -a "$LOG"; touch "$ALERT_FLAG";
+    if email_alert "$DOWN"; then echo "$(ts) email alert sent ($DOWN) to $NOTIFY_TO" | tee -a "$LOG"; touch "$ALERT_FLAG";
     else echo "$(ts) email alert FAILED (check notify.env / Gmail App Password)" | tee -a "$LOG" >&2; fi
   fi
   exit 1
-fi
-
-# 3) Sync refreshed credentials to the GitHub secrets (values read from files, never echoed).
-if gh secret set HIGGSFIELD_CREDENTIALS --repo "$REPO" < "$CRED" \
-   && gh secret set HIGGSFIELD_CONFIG --repo "$REPO" < "$CFG"; then
-  who="$("$HF" account status 2>/dev/null | head -1)"
-  rm -f "$ALERT_FLAG"  # auth healthy again → re-arm alerts for the next outage
-  echo "$(ts) OK: secrets synced — $who" | tee -a "$LOG"
 else
-  echo "$(ts) FAIL: gh secret set failed (check gh auth status)" | tee -a "$LOG" >&2
-  exit 2
+  rm -f "$ALERT_FLAG"  # all providers healthy → re-arm alerts for the next outage
+  exit 0
 fi

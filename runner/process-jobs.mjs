@@ -145,6 +145,19 @@ async function recordUsage(orgId, e) {
   }
 }
 
+// Record provider auth health (singleton platform_settings row) each run, so
+// the local secret-sync task can email the owner when either provider is down.
+async function recordAuthStatus(claudeOk, hfOk) {
+  try {
+    await prisma.$executeRawUnsafe(
+      `UPDATE platform_settings SET claude_auth_ok=$1, higgsfield_auth_ok=$2, auth_checked_at=now()`,
+      claudeOk, hfOk,
+    );
+  } catch (e) {
+    console.error("[runner] auth status write failed:", e?.message || e);
+  }
+}
+
 async function claimCampaign() {
   const rows = await prisma.$queryRawUnsafe(`
     UPDATE email_campaigns SET status='generating', updated_at=now()
@@ -611,8 +624,14 @@ async function processLead(lead) {
 async function main() {
   let processed = 0;
 
+  // Auth preflight results from the workflow (unset for local runs → treat as up).
+  const hfDown = process.env.HF_AUTH_OK === "false";
+  const claudeDown = process.env.CLAUDE_AUTH_OK === "false";
+  await recordAuthStatus(!claudeDown, !hfDown);
+  if (claudeDown) console.warn("[runner] Claude auth is down — skipping copy jobs (leads/email/social/landing left queued for re-auth).");
+
   // 0) Lead qualification (extraction → verify → legal → provision → samples).
-  while (processed < MAX_JOBS) {
+  while (!claudeDown && processed < MAX_JOBS) {
     const lead = await claimLead();
     if (!lead) break;
     try {
@@ -628,10 +647,8 @@ async function main() {
     processed += 1;
   }
 
-  // 1) Media assets (Higgsfield). Skipped when the workflow preflight found
-  // auth down, so queued assets wait for re-auth instead of thrashing to
-  // `error` every run. HF_AUTH_OK is unset for local runs → attempt as before.
-  const hfDown = process.env.HF_AUTH_OK === "false";
+  // 1) Media assets (Higgsfield). Skipped when preflight found auth down, so
+  // queued assets wait for re-auth instead of thrashing to `error` every run.
   if (hfDown) console.warn("[runner] Higgsfield auth is down — skipping media assets (left queued for re-auth).");
   while (!hfDown && processed < MAX_JOBS) {
     const asset = await claimAsset();
@@ -650,7 +667,7 @@ async function main() {
   }
 
   // 2) Email copy (Claude).
-  while (processed < MAX_JOBS) {
+  while (!claudeDown && processed < MAX_JOBS) {
     const c = await claimCampaign();
     if (!c) break;
     try {
@@ -663,7 +680,7 @@ async function main() {
   }
 
   // 3) Social copy (Claude).
-  while (processed < MAX_JOBS) {
+  while (!claudeDown && processed < MAX_JOBS) {
     const p = await claimPost();
     if (!p) break;
     try {
@@ -676,7 +693,7 @@ async function main() {
   }
 
   // 4) Landing / web pages (Claude → self-contained HTML).
-  while (processed < MAX_JOBS) {
+  while (!claudeDown && processed < MAX_JOBS) {
     const lp = await claimLandingPage();
     if (!lp) break;
     try {
