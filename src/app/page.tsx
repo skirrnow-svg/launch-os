@@ -3,6 +3,7 @@ import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import type { BillingTier } from "@/lib/billing/plans";
 import { effectiveTiers, getSignupOffer } from "@/lib/billing/pricing";
+import { getActionCosts } from "@/lib/billing/actionCosts";
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -113,20 +114,23 @@ const FEATURES = [
 // Pricing is derived from the effective billing catalog (code defaults +
 // platform-admin overrides), so the marketing page and the in-app billing
 // screen never drift. INR (₹).
-function buildPricing(tiers: BillingTier[]) {
-  return tiers.map((t, i) => ({
-    name: t.name,
-    price: inr(t.priceInr),
-    period: "/mo",
-    tagline: t.tagline,
-    features: [
-      `${t.creditsPerMonth} media credits / month`,
-      `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`,
-      ...t.features,
-    ],
-    cta: `Choose ${t.name}`,
-    highlight: i === 1, // Growth = most popular
-  }));
+function buildPricing(tiers: BillingTier[], videoCost: number) {
+  return tiers.map((t, i) => {
+    const videos = videoCost > 0 ? Math.floor(t.creditsPerMonth / videoCost) : 0;
+    return {
+      name: t.name,
+      price: inr(t.priceInr),
+      period: "/mo",
+      tagline: t.tagline,
+      features: [
+        `${t.creditsPerMonth} media credits / month (~${videos} videos)`,
+        `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`,
+        ...t.features,
+      ],
+      cta: `Choose ${t.name}`,
+      highlight: i === 1, // Growth = most popular
+    };
+  });
 }
 
 const FAQ = [
@@ -160,8 +164,12 @@ const FAQ = [
 export const revalidate = 30;
 
 export default async function HomePage() {
-  const [tiers, offer] = await Promise.all([effectiveTiers(), getSignupOffer()]);
-  const PRICING = buildPricing(tiers);
+  const [tiers, offer, actionCosts] = await Promise.all([
+    effectiveTiers(),
+    getSignupOffer(),
+    getActionCosts(),
+  ]);
+  const PRICING = buildPricing(tiers, actionCosts.video);
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <SiteHeader />
@@ -339,6 +347,10 @@ export default async function HomePage() {
         <p className="mt-4 max-w-2xl text-slate-600">
           The Product-to-Ad audit is free. Paid plans set your monthly media-credit allowance and unlock
           full-resolution video, multi-channel execution and white-label. Billed monthly in Indian Rupees.
+        </p>
+        <p className="mt-2 text-sm text-slate-500">
+          One shared credit pool — 1 video = {actionCosts.video} credits, 1 image = {actionCosts.image} credits.
+          Ad copy and landing pages cost no credits.
         </p>
         {offer.offerActive && offer.offerLabel && (
           <div className="mt-6 inline-flex items-center gap-2 rounded border border-accent bg-blue-50 px-4 py-2.5 text-sm font-medium text-accent">

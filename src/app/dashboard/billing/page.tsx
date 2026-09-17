@@ -18,6 +18,7 @@ type Tier = {
   approxVideosPerMonth: number; landingPages: number; tagline: string; features: string[];
 };
 type Offer = { offerLabel: string | null } | null;
+type ActionCosts = { video: number; image: number };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -30,6 +31,7 @@ export default function BillingPage() {
   const [budget, setBudget] = useState<Budget | null>(null);
   const [tiers, setTiers] = useState<Tier[]>(FALLBACK_TIERS);
   const [offer, setOffer] = useState<Offer>(null);
+  const [costs, setCosts] = useState<ActionCosts | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -48,6 +50,7 @@ export default function BillingPage() {
         if (!active) return;
         if (Array.isArray(d.tiers) && d.tiers.length) setTiers(d.tiers);
         setOffer(d.offer ?? null);
+        setCosts(d.actionCosts ?? null);
       })
       .catch(() => { /* keep fallback */ });
     return () => {
@@ -64,6 +67,12 @@ export default function BillingPage() {
       <p className="text-slate-500 mt-1">
         Choose a monthly plan. Each plan sets how many sample concept videos your workspace can auto-produce.
       </p>
+      {costs && (
+        <p className="mt-1 text-sm text-slate-400">
+          One shared credit pool — 1 video = {costs.video} credits, 1 image = {costs.image} credits. Ad copy
+          and landing pages cost no credits.
+        </p>
+      )}
 
       {offer?.offerLabel && (
         <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700">
