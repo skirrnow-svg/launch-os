@@ -156,12 +156,25 @@ export default function LeadsPage() {
                     Legal flags: {(lead.verification!.legal_issues as string[]).join("; ")}
                   </p>
                 )}
-              {Array.isArray(lead.verification?.missing) &&
-                (lead.verification!.missing as string[]).length > 0 && (
-                  <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Needs info: {(lead.verification!.missing as string[]).join(", ")}
-                  </p>
-                )}
+              {(() => {
+                const reasons = Array.isArray(lead.verification?.needs_info_reason)
+                  ? (lead.verification!.needs_info_reason as string[])
+                  : Array.isArray(lead.verification?.missing)
+                    ? (lead.verification!.missing as string[])
+                    : [];
+                if (lead.status !== "NEEDS_INFO" || reasons.length === 0) return null;
+                return (
+                  <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <span className="font-semibold">To move this forward, we need:</span>
+                    <ul className="mt-1 list-disc pl-4">
+                      {reasons.map((r, i) => (
+                        <li key={i}>{r}</li>
+                      ))}
+                    </ul>
+                    <span className="mt-1 block text-amber-600">A clarification email draft is waiting in the “Intake” project.</span>
+                  </div>
+                );
+              })()}
 
               {(camp || video) && (
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
