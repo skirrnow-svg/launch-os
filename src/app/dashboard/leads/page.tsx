@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import VideoPromptBuilder from "@/components/leads/VideoPromptBuilder";
 
 type Campaign = { id: string; name: string; subject: string; template_html: string; status: string };
 type Asset = { id: string; name: string; url: string | null; status: string; metadata: Record<string, unknown> | null };
@@ -43,6 +44,7 @@ export default function LeadsPage() {
   const [busy, setBusy] = useState<string>("");
   const [addendum, setAddendum] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<{ title: string; html: string } | null>(null);
+  const [isPaid, setIsPaid] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -60,6 +62,11 @@ export default function LeadsPage() {
   }
   useEffect(() => {
     load();
+    // Resolve the workspace plan so the builder knows whether generation is unlocked.
+    fetch("/api/org")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setIsPaid(Boolean(d?.plan?.isPaid)))
+      .catch(() => setIsPaid(false));
   }, []);
 
   async function approve(lead: Lead) {
@@ -148,6 +155,8 @@ export default function LeadsPage() {
         Inbound prospects, autonomously qualified — verified business details, sample ad copy, and a
         generated concept video. Approve to mark the campaign ready for delivery.
       </p>
+
+      <VideoPromptBuilder isPaid={isPaid} />
 
       {error && <p className="mt-4 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</p>}
       {loading && <p className="mt-6 text-slate-400">Loading…</p>}

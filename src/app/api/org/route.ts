@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getOrgBudget } from "@/lib/credits";
+import { getEntitlement } from "@/lib/billing/entitlements";
 
 
 /**
@@ -13,10 +14,12 @@ import { getOrgBudget } from "@/lib/credits";
 
 export async function GET() {
   const { user, org } = await getContext();
-  const [projectCount, budget] = await Promise.all([
+  const [projectCount, budget, ent] = await Promise.all([
     prisma.projects.count({ where: { org_id: org.id, deleted_at: null } }),
     getOrgBudget(org.id),
+    getEntitlement(org),
   ]);
+  const isAdmin = isPlatformAdmin(user.email);
   return NextResponse.json({
     org: {
       id: org.id,
@@ -27,7 +30,14 @@ export async function GET() {
       brandColor: org.brand_color,
       logoUrl: org.logo_url,
     },
-    isAdmin: isPlatformAdmin(user.email),
+    isAdmin,
+    // Paid = an active/trialing plan; admins are treated as paid for testing.
+    plan: {
+      slug: ent.planSlug,
+      name: ent.planName,
+      status: ent.status,
+      isPaid: ent.planSlug != null || isAdmin,
+    },
     projectCount,
     budget,
   });
