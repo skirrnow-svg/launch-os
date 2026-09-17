@@ -24,6 +24,7 @@ export default function SocialPostDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [awaiting, setAwaiting] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
@@ -50,6 +51,20 @@ export default function SocialPostDetailPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, postId]);
+
+  // Auto-refresh while the runner is writing copy; announce when it lands.
+  useEffect(() => {
+    const busy = post?.status === "queued" || post?.status === "generating";
+    if (busy) {
+      const t = setTimeout(() => { void load(); }, 5000);
+      return () => clearTimeout(t);
+    }
+    if (awaiting && !busy) {
+      setAwaiting(false);
+      setNotice("Copy ready — review and edit below.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [post?.status]);
 
   function toggle(p: string) {
     setPlatforms((cur) => (cur.includes(p) ? cur.filter((x) => x !== p) : [...cur, p]));
@@ -92,7 +107,9 @@ export default function SocialPostDetailPage() {
     try {
       const data = await patch({ generate: true, brief, platforms });
       if (data.generation === "queued") {
-        setNotice("Queued — the runner is writing your copy. Refresh in a moment to see it.");
+        setAwaiting(true);
+        setNotice("Queued — the runner is writing your copy. This updates automatically.");
+        await load();
       } else {
         setNotice("Requested.");
       }
@@ -132,10 +149,10 @@ export default function SocialPostDetailPage() {
         />
         <button
           onClick={generate}
-          disabled={generating}
+          disabled={generating || post.status === "queued" || post.status === "generating"}
           className="justify-self-start rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {generating ? "Writing…" : "Write copy with AI"}
+          {generating || post.status === "queued" || post.status === "generating" ? "Writing…" : "Write copy with AI"}
         </button>
       </div>
 

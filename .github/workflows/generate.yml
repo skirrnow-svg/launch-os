@@ -74,9 +74,20 @@ jobs:
 
       - name: Install Claude Code CLI
         # Copy generation shells out to `claude -p`; the binary must be on PATH.
+        env:
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
         run: |
           npm install -g @anthropic-ai/claude-code
           claude --version
+          # Preflight: gate copy generation on live Claude auth. When it fails,
+          # the runner skips Claude jobs (social/email/landing) — left queued,
+          # not thrashed — and records the status for the alert email.
+          if printf 'ping' | claude -p --max-turns 1 --model "${CLAUDE_CODE_MODEL:-sonnet}" >/dev/null 2>&1; then
+            echo "CLAUDE_AUTH_OK=true" >> "$GITHUB_ENV"
+          else
+            echo "CLAUDE_AUTH_OK=false" >> "$GITHUB_ENV"
+            echo "::warning::Claude auth is down — copy generation paused until re-auth (run 'claude setup-token')."
+          fi
 
       - name: Process queued jobs
         env:
