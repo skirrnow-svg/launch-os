@@ -42,6 +42,7 @@ export default function LeadsPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>("");
   const [addendum, setAddendum] = useState<Record<string, string>>({});
+  const [preview, setPreview] = useState<{ title: string; html: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -250,14 +251,25 @@ export default function LeadsPage() {
                   {camp && (
                     <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                       <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-                        Sample email
+                        Sample email — the ad copy that will be sent
                       </div>
                       <div className="mt-1 text-sm font-medium text-slate-800">{camp.subject}</div>
-                      <div
-                        className="prose prose-sm mt-2 max-h-40 overflow-y-auto text-sm text-slate-600"
-                        dangerouslySetInnerHTML={{ __html: camp.template_html }}
+                      {/* Sandboxed: generated HTML renders isolated; sandbox="" blocks any scripts. */}
+                      <iframe
+                        title={`Email preview — ${camp.subject}`}
+                        srcDoc={camp.template_html}
+                        sandbox=""
+                        className="mt-2 h-48 w-full rounded border border-slate-200 bg-white"
                       />
-                      <div className="mt-2 text-xs text-slate-400">status: {camp.status}</div>
+                      <div className="mt-2 flex items-center justify-between">
+                        <span className="text-xs text-slate-400">status: {camp.status}</span>
+                        <button
+                          onClick={() => setPreview({ title: camp.subject, html: camp.template_html })}
+                          className="text-xs font-semibold text-indigo-600 hover:underline"
+                        >
+                          Preview full email →
+                        </button>
+                      </div>
                     </div>
                   )}
                   {video && (
@@ -292,6 +304,14 @@ export default function LeadsPage() {
                 >
                   {canSend || isSent ? "Approved ✓" : busy === lead.id ? "Approving…" : "1-Click Approve"}
                 </button>
+                {(canSend || isSent) && !isSent && camp && (
+                  <button
+                    onClick={() => setPreview({ title: camp.subject, html: camp.template_html })}
+                    className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
+                  >
+                    Preview before sending
+                  </button>
+                )}
                 {(canSend || isSent) && (
                   <button
                     onClick={() => deliver(lead)}
@@ -307,6 +327,35 @@ export default function LeadsPage() {
           );
         })}
       </div>
+
+      {/* Full-email preview modal — review the exact copy before it is sent. */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="mx-auto flex h-full w-full max-w-3xl flex-col overflow-hidden rounded-lg bg-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+              <span className="truncate text-sm font-medium text-slate-800">{preview.title}</span>
+              <button
+                onClick={() => setPreview(null)}
+                className="rounded px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
+              >
+                Close ✕
+              </button>
+            </div>
+            <iframe
+              title={preview.title}
+              srcDoc={preview.html}
+              sandbox=""
+              className="h-full w-full flex-1 bg-white"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
