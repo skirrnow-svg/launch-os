@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { PROMPT_BUILDER_OPTIONS as OPT, FRAMING_COUNT } from "./promptBuilderOptions";
 
 /**
  * Universal AI Video Prompt Builder (see Instructions/videogenpromptgen.txt).
@@ -23,53 +24,12 @@ const FIXED_NEGATIVE =
   "extra limbs, disjointed joints, unrealistic physics, zero compression, rubbery movement, " +
   "blur, low quality";
 
-const HERO_SUGGESTIONS = [
-  "Waterproof adventure boots",
-  "SaaS dashboard",
-  "Premium wireless earbuds",
-  "Electric SUV",
-  "Skincare serum bottle",
-];
+// Camera dataset splits into framing (first FRAMING_COUNT) then movement.
+const FRAMINGS = OPT.cameraFramingAndMovement.slice(0, FRAMING_COUNT);
+const MOVEMENTS = OPT.cameraFramingAndMovement.slice(FRAMING_COUNT);
 
-const ACTORS = [
-  "No people (product only)",
-  "Motorcycle rider in technical gear",
-  "Software engineer at a desk",
-  "Athlete mid-training",
-  "Chef in a professional kitchen",
-  "Field technician on-site",
-  "Everyday commuter",
-];
-
-const CAMERAS = [
-  "Low-angle three-quarter tracking",
-  "Macro close-up with shallow depth of field",
-  "Smooth dolly-in",
-  "Slow 180-degree orbit",
-  "Eye-level static hero shot",
-  "Overhead top-down reveal",
-  "Handheld follow",
-];
-
-const ENVIRONMENTS = [
-  "Wet coastal asphalt at sunrise",
-  "Minimalist studio rim lighting",
-  "Neon-lit city street at night",
-  "Sunlit modern office",
-  "Rugged mountain trail at golden hour",
-  "Clean white cyclorama",
-];
-
-const MATERIALS = [
-  "Matte rubber & reinforced armor",
-  "Brushed metal",
-  "Crisp screen luminance",
-  "Full-grain leather",
-  "Carbon fibre weave",
-  "Water droplets & mist",
-  "Anodized aluminium",
-  "Soft fabric texture",
-];
+const inputCls =
+  "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -80,60 +40,148 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-const inputCls =
-  "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300";
+/**
+ * A capped multi-select chip group. Selecting past `max` drops the oldest pick
+ * (never blocks the click); clicking a selected chip removes it.
+ */
+function ChipGroup({
+  label,
+  hint,
+  options,
+  selected,
+  onChange,
+  max,
+}: {
+  label: string;
+  hint?: string;
+  options: readonly string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  max: number;
+}) {
+  function toggle(item: string) {
+    if (selected.includes(item)) {
+      onChange(selected.filter((x) => x !== item));
+      return;
+    }
+    if (max === 1) {
+      onChange([item]);
+      return;
+    }
+    onChange(selected.length >= max ? [...selected.slice(1), item] : [...selected, item]);
+  }
+  return (
+    <div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs font-semibold text-slate-600">{label}</span>
+        <span className="text-[11px] text-slate-400">
+          {hint ?? `choose up to ${max}`} · {selected.length}/{max}
+        </span>
+      </div>
+      <div className="mt-1 flex flex-wrap gap-2">
+        {options.map((o) => {
+          const on = selected.includes(o);
+          return (
+            <button
+              key={o}
+              type="button"
+              onClick={() => toggle(o)}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                on
+                  ? "border-indigo-600 bg-indigo-600 text-white"
+                  : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+              }`}
+            >
+              {o}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
   const [open, setOpen] = useState(false);
+
   const [hero, setHero] = useState("");
-  const [actor, setActor] = useState(ACTORS[0]);
+  const [actors, setActors] = useState<string[]>([]); // 1–2
   const [action, setAction] = useState("");
-  const [camera, setCamera] = useState(CAMERAS[0]);
-  const [environment, setEnvironment] = useState(ENVIRONMENTS[0]);
-  const [materials, setMaterials] = useState<string[]>([]);
-  // Production guardrails — default checked.
+  const [framing, setFraming] = useState<string[]>([]); // exactly 1
+  const [movements, setMovements] = useState<string[]>([]); // up to 2
+  const [environments, setEnvironments] = useState<string[]>([]); // up to 3
+  const [lighting, setLighting] = useState<string[]>([]); // up to 2
+  const [materials, setMaterials] = useState<string[]>([]); // up to 4
+
+  // Production guardrails — default all true.
   const [gravity, setGravity] = useState(true);
   const [noText, setNoText] = useState(true);
   const [noMorph, setNoMorph] = useState(true);
+  const [orientation, setOrientation] = useState(true);
+  const [noDuplicates, setNoDuplicates] = useState(true);
+  const [temporal, setTemporal] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  function toggleMaterial(m: string) {
-    setMaterials((cur) => (cur.includes(m) ? cur.filter((x) => x !== m) : [...cur, m]));
-  }
-
   // Compile the structured state into a single positive prompt. Unset fields are
   // dropped gracefully and redundant whitespace collapsed.
   const positive = useMemo(() => {
     const h = hero.trim();
     if (!h) return "";
-    const parts: string[] = [];
-    parts.push(`${camera} focused on ${h}`);
-    if (actor && actor !== ACTORS[0]) parts.push(`used by ${actor}`);
-    if (environment) parts.push(`in ${environment}`);
-    let sentence = parts.join(" ") + ".";
+
+    const camera = [...framing, ...movements].filter(Boolean).join(", ");
+    const actorPhrase = actors.join(" and ");
+    const envPhrase = environments.join(", ");
+    const lightPhrase = lighting.join(" and ");
+    const materialPhrase = materials.join(", ");
+
+    const lead: string[] = [];
+    lead.push(`${camera || "Cinematic commercial shot"} focused on ${h}`);
+    if (actorPhrase) lead.push(`featuring ${actorPhrase}`);
+    if (envPhrase) lead.push(`set in ${envPhrase}`);
+    let sentence = lead.join(", ") + ".";
+
+    if (lightPhrase) sentence += ` Lighting: ${lightPhrase}.`;
 
     sentence += action.trim()
       ? ` Action: ${action.trim()}, demonstrating authentic weight and fluid dynamics.`
       : " Demonstrating authentic weight and fluid dynamics.";
 
-    if (materials.length) {
-      sentence += ` Material focus: ${materials.join(", ")} highlighted with crisp commercial lighting and sharp edge contrast.`;
+    if (materialPhrase) {
+      sentence += ` Material focus: ${materialPhrase} highlighted with crisp commercial lighting and sharp edge contrast.`;
     }
 
     // Guardrails reinforce the positive side (the negative prompt is fixed below).
     if (gravity) sentence += " Strict physical gravity, weight transfer and realistic suspension compression.";
-    if (noMorph) sentence += " Anatomically correct limbs and joints throughout, no morphing.";
+    if (orientation) sentence += " Correct anatomical and object orientation throughout, no reversed or backward limbs.";
+    if (noMorph) sentence += " Anatomically correct limbs and joints, no morphing.";
+    if (noDuplicates) sentence += " No duplicated, extra or missing limbs or objects.";
+    if (temporal) sentence += " Temporally stable, no frame-to-frame warping or flicker.";
     if (noText) sentence += " No on-screen text, typography or floating badges.";
 
     sentence +=
       " Photorealistic, cinematic 24fps, high fidelity, clean footage, zero on-screen text, no overlays.";
 
     return sentence.replace(/\s+/g, " ").trim();
-  }, [hero, actor, action, camera, environment, materials, gravity, noText, noMorph]);
+  }, [
+    hero,
+    actors,
+    action,
+    framing,
+    movements,
+    environments,
+    lighting,
+    materials,
+    gravity,
+    noText,
+    noMorph,
+    orientation,
+    noDuplicates,
+    temporal,
+  ]);
 
   const canBuild = positive.length > 0;
 
@@ -151,9 +199,9 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
     if (!isPaid) return;
     setError("");
     setNotice("");
-    // Confirm-before-spend: ask the server for the cost, then confirm.
     setBusy(true);
     try {
+      // Confirm-before-spend: ask the server for the cost, then confirm.
       const pre = await fetch("/api/leads/video/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -218,114 +266,140 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
             generate the video directly.
           </p>
 
+          {/* Hero + action */}
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Hero subject — the product or UI">
               <input
                 list="hero-suggestions"
                 value={hero}
                 onChange={(e) => setHero(e.target.value)}
-                placeholder="e.g. Waterproof adventure boots"
+                placeholder="Pick a preset or type your own"
                 className={inputCls}
               />
               <datalist id="hero-suggestions">
-                {HERO_SUGGESTIONS.map((s) => (
+                {OPT.heroSubjects.map((s) => (
                   <option key={s} value={s} />
                 ))}
               </datalist>
             </Field>
 
-            <Field label="Actor / context">
-              <select value={actor} onChange={(e) => setActor(e.target.value)} className={inputCls}>
-                {ACTORS.map((a) => (
-                  <option key={a} value={a}>
-                    {a}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Camera framing & movement">
-              <select value={camera} onChange={(e) => setCamera(e.target.value)} className={inputCls}>
-                {CAMERAS.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Environment & lighting">
+            <Field label="Core action & mechanics — insert a preset, then edit freely">
               <select
-                value={environment}
-                onChange={(e) => setEnvironment(e.target.value)}
+                value=""
+                onChange={(e) => {
+                  if (e.target.value) setAction(e.target.value);
+                }}
                 className={inputCls}
               >
-                {ENVIRONMENTS.map((v) => (
-                  <option key={v} value={v}>
-                    {v}
+                <option value="">Insert a preset action…</option>
+                {OPT.actionsAndMechanics.map((a) => (
+                  <option key={a} value={a}>
+                    {a.length > 70 ? `${a.slice(0, 70)}…` : a}
                   </option>
                 ))}
               </select>
             </Field>
-
-            <div className="md:col-span-2">
-              <Field label="Core action & interaction — the exact mechanical movement">
-                <textarea
-                  value={action}
-                  onChange={(e) => setAction(e.target.value)}
-                  rows={2}
-                  placeholder="e.g. Stepping onto the footpeg with realistic suspension compression, then swinging a leg over the saddle"
-                  className={`${inputCls} resize-y`}
-                />
-              </Field>
-            </div>
           </div>
 
-          {/* Materials */}
-          <div className="mt-4">
-            <span className="text-xs font-semibold text-slate-600">Material & detail focus</span>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {MATERIALS.map((m) => {
-                const on = materials.includes(m);
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => toggleMaterial(m)}
-                    className={`rounded-full border px-3 py-1 text-xs font-medium ${
-                      on
-                        ? "border-indigo-600 bg-indigo-600 text-white"
-                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
-                    }`}
-                  >
-                    {m}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="mt-3">
+            <Field label="Action text (editable)">
+              <textarea
+                value={action}
+                onChange={(e) => setAction(e.target.value)}
+                rows={2}
+                placeholder="e.g. Stepping firmly onto the footpeg with authentic weight transfer and sole traction"
+                className={`${inputCls} resize-y`}
+              />
+            </Field>
+          </div>
+
+          {/* Chip groups */}
+          <div className="mt-5 grid gap-5">
+            <ChipGroup
+              label="Actor & wardrobe"
+              hint="pick 1–2"
+              options={OPT.actorsAndWardrobe}
+              selected={actors}
+              onChange={setActors}
+              max={2}
+            />
+            <ChipGroup
+              label="Camera framing"
+              hint="pick 1"
+              options={FRAMINGS}
+              selected={framing}
+              onChange={setFraming}
+              max={1}
+            />
+            <ChipGroup
+              label="Camera movement"
+              hint="up to 2"
+              options={MOVEMENTS}
+              selected={movements}
+              onChange={setMovements}
+              max={2}
+            />
+            <ChipGroup
+              label="Environment"
+              hint="up to 3"
+              options={OPT.environments}
+              selected={environments}
+              onChange={setEnvironments}
+              max={3}
+            />
+            <ChipGroup
+              label="Lighting & atmosphere"
+              hint="up to 2"
+              options={OPT.lightingAndAtmosphere}
+              selected={lighting}
+              onChange={setLighting}
+              max={2}
+            />
+            <ChipGroup
+              label="Material & finish focus"
+              hint="up to 4"
+              options={OPT.materialsAndFinishes}
+              selected={materials}
+              onChange={setMaterials}
+              max={4}
+            />
           </div>
 
           {/* Guardrails */}
-          <div className="mt-4 rounded-lg border border-slate-200 bg-white p-3">
-            <span className="text-xs font-semibold text-slate-600">Production guardrails</span>
-            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <div className="mt-5 rounded-lg border border-slate-200 bg-white p-3">
+            <span className="text-xs font-semibold text-slate-600">
+              Production guardrails — physics &amp; anti-artifact
+            </span>
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <label className="flex items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" checked={gravity} onChange={(e) => setGravity(e.target.checked)} />
                 Enforce gravity &amp; weight dynamics
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={noText} onChange={(e) => setNoText(e.target.checked)} />
-                Suppress AI text &amp; floating badges
+                <input type="checkbox" checked={orientation} onChange={(e) => setOrientation(e.target.checked)} />
+                Correct orientation (no reversed limbs)
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
                 <input type="checkbox" checked={noMorph} onChange={(e) => setNoMorph(e.target.checked)} />
                 Prevent limb &amp; joint morphing
               </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={noDuplicates} onChange={(e) => setNoDuplicates(e.target.checked)} />
+                No duplicated / extra limbs or objects
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={temporal} onChange={(e) => setTemporal(e.target.checked)} />
+                Temporal stability (no warping / flicker)
+              </label>
+              <label className="flex items-center gap-2 text-xs text-slate-700">
+                <input type="checkbox" checked={noText} onChange={(e) => setNoText(e.target.checked)} />
+                Suppress AI text &amp; floating badges
+              </label>
             </div>
           </div>
 
           {/* Compiled preview */}
-          <div className="mt-4 rounded-lg border border-slate-300 bg-white p-4">
+          <div className="mt-5 rounded-lg border border-slate-300 bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
               Compiled prompt (live)
             </div>
@@ -367,7 +441,10 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
                 >
                   Generate video 🔒
                 </button>
-                <Link href="/dashboard/billing" className="text-xs font-semibold text-indigo-600 hover:underline">
+                <Link
+                  href="/dashboard/billing"
+                  className="text-xs font-semibold text-indigo-600 hover:underline"
+                >
                   Upgrade to unlock →
                 </Link>
               </div>
