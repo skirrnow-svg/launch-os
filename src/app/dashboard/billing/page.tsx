@@ -69,8 +69,8 @@ export default function BillingPage() {
       </p>
       {costs && (
         <p className="mt-1 text-sm text-slate-400">
-          One shared credit pool — 1 video = {costs.video} credits, 1 image = {costs.image} credits. Ad copy
-          and landing pages cost no credits.
+          One shared credit pool — video from ~{costs.video} credits (rises with clip length, resolution and
+          quality), image {costs.image} credits. Ad copy and landing pages cost no credits.
         </p>
       )}
 
@@ -111,8 +111,13 @@ export default function BillingPage() {
               <span className="text-slate-500 text-sm">/mo</span>
             </div>
             <div className="mt-1 text-sm font-medium text-indigo-600">
-              {t.creditsPerMonth} credits · ~{t.approxVideosPerMonth} videos / mo
+              {t.creditsPerMonth} credits · up to ~{t.approxVideosPerMonth} short videos / mo
             </div>
+            {costs && (
+              <div className="mt-0.5 text-xs text-slate-500">
+                Video from ~{costs.video} credits (more for longer / HD)
+              </div>
+            )}
             <div className="mt-0.5 text-sm text-slate-500">
               {t.landingPages} landing {t.landingPages === 1 ? "page" : "pages"}
             </div>

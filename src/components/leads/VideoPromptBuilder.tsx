@@ -309,7 +309,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       if (est.status !== "confirmation-required") throw new Error("Unexpected response.");
 
       const ok = window.confirm(
-        `Generate this video now?\n\nEstimated cost: ~${est.estimatedCredits} Higgsfield credits (${est.model}).\nIt renders in the background and appears in your Video Studio project.`,
+        `Generate this video now?\n\nFrom ~${est.estimatedCredits} Higgsfield credits (${est.model}) — the base rate for a short clip; longer or higher-resolution clips cost more.\nIt renders in the background and appears in your Video Studio project.`,
       );
       if (!ok) return;
 

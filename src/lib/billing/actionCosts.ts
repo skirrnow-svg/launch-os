@@ -16,8 +16,15 @@ import { prisma } from "@/lib/db";
 
 export type ActionKind = "video" | "image";
 
-/** Code defaults — the coarse pre-flight estimates used before any override. */
-export const DEFAULT_ACTION_COSTS: Record<ActionKind, number> = { video: 30, image: 7 };
+/**
+ * Code defaults. `video` is the BASE (minimum) cost — the cheapest clip (short,
+ * 480p). Longer or higher-resolution clips cost more, so it is presented as
+ * "from ~N credits". `image` is a flat per-image cost.
+ */
+export const DEFAULT_ACTION_COSTS: Record<ActionKind, number> = { video: 6, image: 7 };
+
+/** What drives a video above its base cost — shown to explain the range. */
+export const VIDEO_COST_FACTORS = "clip length, resolution and quality";
 
 /** Free actions (informational, for the admin UI). Never burn media credits. */
 export const FREE_ACTIONS = [

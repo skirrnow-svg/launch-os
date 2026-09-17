@@ -123,7 +123,8 @@ function buildPricing(tiers: BillingTier[], videoCost: number) {
       period: "/mo",
       tagline: t.tagline,
       features: [
-        `${t.creditsPerMonth} media credits / month (~${videos} videos)`,
+        `${t.creditsPerMonth} media credits / month — up to ~${videos} short videos`,
+        `Video from ~${videoCost} credits (more for longer or HD clips)`,
         `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`,
         ...t.features,
       ],
@@ -349,8 +350,8 @@ export default async function HomePage() {
           full-resolution video, multi-channel execution and white-label. Billed monthly in Indian Rupees.
         </p>
         <p className="mt-2 text-sm text-slate-500">
-          One shared credit pool — 1 video = {actionCosts.video} credits, 1 image = {actionCosts.image} credits.
-          Ad copy and landing pages cost no credits.
+          One shared credit pool — video from ~{actionCosts.video} credits (rises with clip length, resolution
+          and quality), image {actionCosts.image} credits. Ad copy and landing pages cost no credits.
         </p>
         {offer.offerActive && offer.offerLabel && (
           <div className="mt-6 inline-flex items-center gap-2 rounded border border-accent bg-blue-50 px-4 py-2.5 text-sm font-medium text-accent">

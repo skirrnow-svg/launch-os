@@ -535,9 +535,10 @@ model platform_settings {
   // unlock at >= advanced_min. Admin-editable from the pricing console.
   builder_basic_min_credits    Int      @default(10)
   builder_advanced_min_credits Int      @default(25)
-  // Per-action credit cost (the pre-flight estimate + budget charge for one
-  // media generation). One shared wallet, different burn rates. Admin-editable.
-  credit_cost_video            Int      @default(30)
+  // Per-action credit cost. One shared wallet, different burn rates. Admin-editable.
+  // Video is the BASE (minimum) cost — the cheapest clip (short, 480p); longer or
+  // higher-resolution clips cost more, so it is shown as "from ~N credits".
+  credit_cost_video            Int      @default(6)
   credit_cost_image            Int      @default(7)
   updated_at                  DateTime @default(now()) @db.Timestamptz(6)
 }

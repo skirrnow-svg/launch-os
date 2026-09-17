@@ -194,15 +194,16 @@ export default function PricingOffers() {
       {/* Per-action credit costs */}
       <h3 className="mt-8 font-display text-lg font-bold tracking-tight">Per-action credit costs</h3>
       <p className="mt-1 text-sm text-slate-500">
-        One shared credit wallet, different burn rates per action. These set the pre-flight estimate
-        and the amount charged against a workspace&apos;s monthly credits for each generation. Copy and
-        web pages cost no credits — they are governed by each plan&apos;s token and page allowances.
+        One shared credit wallet, different burn rates per action. Video is the <strong>base
+        (minimum)</strong> cost of the cheapest clip (short, 480p); longer or higher-resolution clips
+        cost more, and it is shown to customers as &ldquo;from ~N credits&rdquo;. Copy and web pages cost
+        no credits — they are governed by each plan&apos;s token and page allowances.
       </p>
       {costs && (
         <div className="mt-4 rounded border border-slate-200 bg-white p-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Video — credits / generation</label>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Video — base (min) credits</label>
               <input type="number" min={0} value={costs.video}
                 onChange={(e) => setCosts({ ...costs, video: Number(e.target.value) })}
                 className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
