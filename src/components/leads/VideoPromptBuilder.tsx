@@ -3,13 +3,25 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { PROMPT_BUILDER_OPTIONS as OPT, FRAMING_COUNT } from "./promptBuilderOptions";
+import {
+  compileVideoPrompts,
+  CAMERA_BODIES,
+  LENS_PROFILES,
+  COLOR_SCIENCES,
+  type ProVideoPromptState,
+  type CameraBody,
+  type LensProfile,
+  type ColorScience,
+} from "./promptCompiler";
 
 /**
  * Universal AI Video Prompt Builder (see Instructions/videogenpromptgen.txt).
  *
  * A guided form that assembles non-technical inputs into a clean, physically
- * accurate commercial video prompt in real time, and injects a fixed,
- * production-ready negative prompt on output.
+ * accurate commercial video prompt in real time — now with professional
+ * cinematography controls (camera body, lens, colour science, shutter/physics
+ * guardrails). Compilation and the dynamic negative prompt live in
+ * ./promptCompiler.
  *
  * Access model:
  *  - Visible to any signed-in (verified) user — building and copying a prompt is
@@ -17,12 +29,6 @@ import { PROMPT_BUILDER_OPTIONS as OPT, FRAMING_COUNT } from "./promptBuilderOpt
  *  - "Generate Video" is enabled only for PAID users (isPaid). Free users see an
  *    upgrade affordance instead; they can still copy the prompt.
  */
-
-// Fixed negative prompt — mirrors the server; shown read-only, never editable.
-const FIXED_NEGATIVE =
-  "text, typography, misspelled words, floating logos, watermark, morphing fingers, " +
-  "extra limbs, disjointed joints, unrealistic physics, zero compression, rubbery movement, " +
-  "blur, low quality";
 
 // Camera dataset splits into framing (first FRAMING_COUNT) then movement.
 const FRAMINGS = OPT.cameraFramingAndMovement.slice(0, FRAMING_COUNT);
@@ -113,59 +119,47 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
   const [lighting, setLighting] = useState<string[]>([]); // up to 2
   const [materials, setMaterials] = useState<string[]>([]); // up to 4
 
+  // Cinema kit — optical/colour profiles ("" = Auto → compiler default).
+  const [cameraBody, setCameraBody] = useState<CameraBody | "">("");
+  const [lensProfile, setLensProfile] = useState<LensProfile | "">("");
+  const [colorScience, setColorScience] = useState<ColorScience | "">("");
+
   // Production guardrails — default all true.
-  const [gravity, setGravity] = useState(true);
-  const [noText, setNoText] = useState(true);
-  const [noMorph, setNoMorph] = useState(true);
-  const [orientation, setOrientation] = useState(true);
-  const [noDuplicates, setNoDuplicates] = useState(true);
-  const [temporal, setTemporal] = useState(true);
+  const [enforcePhysics, setEnforcePhysics] = useState(true);
+  const [suppressText, setSuppressText] = useState(true);
+  const [lockAnatomy, setLockAnatomy] = useState(true);
+  const [rigidCollisions, setRigidCollisions] = useState(true);
+  const [lockShutterSpeed, setLockShutterSpeed] = useState(true);
 
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  // Compile the structured state into a single positive prompt. Unset fields are
-  // dropped gracefully and redundant whitespace collapsed.
-  const positive = useMemo(() => {
-    const h = hero.trim();
-    if (!h) return "";
-
-    const camera = [...framing, ...movements].filter(Boolean).join(", ");
-    const actorPhrase = actors.join(" and ");
-    const envPhrase = environments.join(", ");
-    const lightPhrase = lighting.join(" and ");
-    const materialPhrase = materials.join(", ");
-
-    const lead: string[] = [];
-    lead.push(`${camera || "Cinematic commercial shot"} focused on ${h}`);
-    if (actorPhrase) lead.push(`featuring ${actorPhrase}`);
-    if (envPhrase) lead.push(`set in ${envPhrase}`);
-    let sentence = lead.join(", ") + ".";
-
-    if (lightPhrase) sentence += ` Lighting: ${lightPhrase}.`;
-
-    sentence += action.trim()
-      ? ` Action: ${action.trim()}, demonstrating authentic weight and fluid dynamics.`
-      : " Demonstrating authentic weight and fluid dynamics.";
-
-    if (materialPhrase) {
-      sentence += ` Material focus: ${materialPhrase} highlighted with crisp commercial lighting and sharp edge contrast.`;
-    }
-
-    // Guardrails reinforce the positive side (the negative prompt is fixed below).
-    if (gravity) sentence += " Strict physical gravity, weight transfer and realistic suspension compression.";
-    if (orientation) sentence += " Correct anatomical and object orientation throughout, no reversed or backward limbs.";
-    if (noMorph) sentence += " Anatomically correct limbs and joints, no morphing.";
-    if (noDuplicates) sentence += " No duplicated, extra or missing limbs or objects.";
-    if (temporal) sentence += " Temporally stable, no frame-to-frame warping or flicker.";
-    if (noText) sentence += " No on-screen text, typography or floating badges.";
-
-    sentence +=
-      " Photorealistic, cinematic 24fps, high fidelity, clean footage, zero on-screen text, no overlays.";
-
-    return sentence.replace(/\s+/g, " ").trim();
+  // Assemble the pro state and compile to a positive/negative pair.
+  const { positivePrompt, negativePrompt } = useMemo(() => {
+    const state: ProVideoPromptState = {
+      heroSubject: hero.trim(),
+      actors,
+      action: action.trim(),
+      camera: [...framing, ...movements].filter(Boolean),
+      environments,
+      lighting,
+      materials,
+      cinemaKit: {
+        cameraBody: cameraBody || undefined,
+        lensProfile: lensProfile || undefined,
+        colorScience: colorScience || undefined,
+      },
+      guardrails: {
+        enforcePhysics,
+        suppressText,
+        lockAnatomy,
+        rigidCollisions,
+        lockShutterSpeed,
+      },
+    };
+    return compileVideoPrompts(state);
   }, [
     hero,
     actors,
@@ -175,19 +169,22 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
     environments,
     lighting,
     materials,
-    gravity,
-    noText,
-    noMorph,
-    orientation,
-    noDuplicates,
-    temporal,
+    cameraBody,
+    lensProfile,
+    colorScience,
+    enforcePhysics,
+    suppressText,
+    lockAnatomy,
+    rigidCollisions,
+    lockShutterSpeed,
   ]);
 
-  const canBuild = positive.length > 0;
+  // Require at least a hero subject before the prompt is meaningful.
+  const canBuild = hero.trim().length > 0;
 
   async function copyPrompt() {
     try {
-      await navigator.clipboard.writeText(positive);
+      await navigator.clipboard.writeText(positivePrompt);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -202,10 +199,11 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
     setBusy(true);
     try {
       // Confirm-before-spend: ask the server for the cost, then confirm.
+      const payload = { positive: positivePrompt, negative: negativePrompt };
       const pre = await fetch("/api/leads/video/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ positive }),
+        body: JSON.stringify(payload),
       });
       const est = await pre.json();
       if (pre.status === 402) {
@@ -223,7 +221,7 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
       const res = await fetch("/api/leads/video/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ positive, confirmed: true }),
+        body: JSON.stringify({ ...payload, confirmed: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Could not start generation.");
@@ -262,8 +260,8 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
         <div className="border-t border-indigo-200 p-5">
           <p className="mb-4 text-xs text-slate-600">
             Answer a few questions and we assemble a clean, physically accurate commercial video
-            prompt for you — with a production-grade safety filter baked in. Copy it anywhere, or
-            generate the video directly.
+            prompt for you — with a professional cinema kit and a production-grade safety filter
+            baked in. Copy it anywhere, or generate the video directly.
           </p>
 
           {/* Hero + action */}
@@ -311,6 +309,45 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
                 className={`${inputCls} resize-y`}
               />
             </Field>
+          </div>
+
+          {/* Cinema kit */}
+          <div className="mt-5 rounded-lg border border-slate-200 bg-white p-3">
+            <span className="text-xs font-semibold text-slate-600">
+              Cinema kit — optical &amp; colour profile
+            </span>
+            <div className="mt-2 grid gap-3 sm:grid-cols-3">
+              <Field label="Camera body">
+                <select value={cameraBody} onChange={(e) => setCameraBody(e.target.value as CameraBody | "")} className={inputCls}>
+                  <option value="">Auto (ARRI Alexa Mini LF)</option>
+                  {CAMERA_BODIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Lens profile">
+                <select value={lensProfile} onChange={(e) => setLensProfile(e.target.value as LensProfile | "")} className={inputCls}>
+                  <option value="">Auto (Anamorphic 35mm Prime)</option>
+                  {LENS_PROFILES.map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Colour science">
+                <select value={colorScience} onChange={(e) => setColorScience(e.target.value as ColorScience | "")} className={inputCls}>
+                  <option value="">Auto (graded commercial LUT)</option>
+                  {COLOR_SCIENCES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
           </div>
 
           {/* Chip groups */}
@@ -372,28 +409,24 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
             </span>
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={gravity} onChange={(e) => setGravity(e.target.checked)} />
-                Enforce gravity &amp; weight dynamics
+                <input type="checkbox" checked={enforcePhysics} onChange={(e) => setEnforcePhysics(e.target.checked)} />
+                Enforce rigid-body physics &amp; gravity
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={orientation} onChange={(e) => setOrientation(e.target.checked)} />
-                Correct orientation (no reversed limbs)
+                <input type="checkbox" checked={lockAnatomy} onChange={(e) => setLockAnatomy(e.target.checked)} />
+                Lock anatomy &amp; forward orientation
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={noMorph} onChange={(e) => setNoMorph(e.target.checked)} />
-                Prevent limb &amp; joint morphing
+                <input type="checkbox" checked={rigidCollisions} onChange={(e) => setRigidCollisions(e.target.checked)} />
+                Rigid collisions (zero clipping)
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={noDuplicates} onChange={(e) => setNoDuplicates(e.target.checked)} />
-                No duplicated / extra limbs or objects
+                <input type="checkbox" checked={lockShutterSpeed} onChange={(e) => setLockShutterSpeed(e.target.checked)} />
+                Lock 180° shutter (no motion blur)
               </label>
               <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={temporal} onChange={(e) => setTemporal(e.target.checked)} />
-                Temporal stability (no warping / flicker)
-              </label>
-              <label className="flex items-center gap-2 text-xs text-slate-700">
-                <input type="checkbox" checked={noText} onChange={(e) => setNoText(e.target.checked)} />
-                Suppress AI text &amp; floating badges
+                <input type="checkbox" checked={suppressText} onChange={(e) => setSuppressText(e.target.checked)} />
+                Suppress AI text &amp; floating logos
               </label>
             </div>
           </div>
@@ -401,16 +434,16 @@ export default function VideoPromptBuilder({ isPaid }: { isPaid: boolean }) {
           {/* Compiled preview */}
           <div className="mt-5 rounded-lg border border-slate-300 bg-white p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Compiled prompt (live)
+              Compiled positive prompt (live)
             </div>
             <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">
-              {positive || "Add a hero subject to start building your prompt."}
+              {canBuild ? positivePrompt : "Add a hero subject to start building your prompt."}
             </p>
             <div className="mt-3 border-t border-slate-100 pt-3">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-400">
-                Auto-injected negative prompt (locked)
+                Auto-injected negative prompt (locked · adapts to guardrails)
               </div>
-              <p className="mt-1 text-xs text-slate-500">{FIXED_NEGATIVE}</p>
+              <p className="mt-1 text-xs text-slate-500">{negativePrompt}</p>
             </div>
           </div>
 

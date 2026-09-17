@@ -71,9 +71,16 @@ export const POST = withErrors(async (request: Request) => {
 
   const body = (await request.json().catch(() => ({}))) as {
     positive?: unknown;
+    negative?: unknown;
     confirmed?: unknown;
   };
   const positive = typeof body.positive === "string" ? body.positive.trim() : "";
+  // The builder now compiles a dynamic negative prompt; fall back to the fixed
+  // baseline if the client did not send one.
+  const negative =
+    typeof body.negative === "string" && body.negative.trim()
+      ? body.negative.trim().slice(0, 2000)
+      : FIXED_NEGATIVE;
   if (positive.length < 20) {
     return NextResponse.json(
       { error: "Build a fuller prompt before generating (add at least the subject and action)." },
@@ -108,8 +115,8 @@ export const POST = withErrors(async (request: Request) => {
 
   const project = await ensureStudioProject(org.id, user.id);
 
-  // Fold the fixed negative in as an "Avoid:" clause (seedance has no negative field).
-  const storedPrompt = `${positive}\n\nAvoid: ${FIXED_NEGATIVE}`;
+  // Fold the negative in as an "Avoid:" clause (seedance has no negative field).
+  const storedPrompt = `${positive}\n\nAvoid: ${negative}`;
 
   const asset = await prisma.assets.create({
     data: {
@@ -119,7 +126,7 @@ export const POST = withErrors(async (request: Request) => {
       name: "AI Prompt Builder video",
       prompt: storedPrompt,
       status: "queued",
-      metadata: { source: "prompt-builder", negative: FIXED_NEGATIVE },
+      metadata: { source: "prompt-builder", negative },
     },
   });
 
