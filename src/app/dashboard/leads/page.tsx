@@ -41,6 +41,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<string>("");
+  const [addendum, setAddendum] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -99,6 +100,41 @@ export default function LeadsPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Send failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Re-run a NEEDS_INFO lead after adding detail, and/or override the AI's soft
+  // checks ("approve anyway"). It goes back through qualification → samples.
+  async function requeue(lead: Lead, force: boolean) {
+    const text = (addendum[lead.id] ?? "").trim();
+    if (!text && !force) {
+      setError("Add some detail, or use “Approve anyway”.");
+      return;
+    }
+    if (
+      force &&
+      !window.confirm(
+        `Approve anyway for ${lead.email}?\n\nThis overrides the AI's business/location flag and re-runs qualification. It still passes legal review before the sample ad is generated.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(lead.id);
+    setError("");
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/requeue`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addendum: text, force }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Re-run failed.");
+      setAddendum((a) => ({ ...a, [lead.id]: "" }));
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Re-run failed.");
     } finally {
       setBusy("");
     }
@@ -175,6 +211,39 @@ export default function LeadsPage() {
                   </div>
                 );
               })()}
+
+              {lead.status === "NEEDS_INFO" && (
+                <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <label className="text-xs font-semibold text-slate-600">
+                    Add the missing detail, then re-run
+                  </label>
+                  <textarea
+                    value={addendum[lead.id] ?? ""}
+                    onChange={(e) => setAddendum((a) => ({ ...a, [lead.id]: e.target.value }))}
+                    rows={2}
+                    placeholder="e.g. City: Pune, Maharashtra · Contact: +91… / name@brand.com · Offer: premium adventure-touring riding boots, waterproof, CE-certified"
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => requeue(lead, false)}
+                      disabled={busy === lead.id}
+                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-500 disabled:opacity-50"
+                    >
+                      {busy === lead.id ? "Re-running…" : "Add details & re-run"}
+                    </button>
+                    <button
+                      onClick={() => requeue(lead, true)}
+                      disabled={busy === lead.id}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                      title="Override the AI's business/location flag and push it through (still passes legal review)"
+                    >
+                      Approve anyway
+                    </button>
+                    <span className="text-[11px] text-slate-400">Re-runs qualification → generates the sample ad.</span>
+                  </div>
+                </div>
+              )}
 
               {(camp || video) && (
                 <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">

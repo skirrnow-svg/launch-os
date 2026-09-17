@@ -370,7 +370,7 @@ async function claimLead() {
       SELECT id FROM leads
       WHERE status='PENDING' AND intent_status='INTERESTED'
       ORDER BY created_at ASC LIMIT 1 FOR UPDATE SKIP LOCKED
-    ) RETURNING id, org_id, email, raw_body, source, auto_video
+    ) RETURNING id, org_id, email, raw_body, source, auto_video, verification
   `);
   return rows[0] || null;
 }
@@ -566,7 +566,11 @@ async function processLead(lead) {
 
   // Decision — incomplete/ambiguous first (never legal-reject on missing
   // data), then a genuine legal violation, else qualify.
-  if (missing.length > 0 || !business_plausible || !metro_consistent) {
+  // An operator "approve anyway" (verification.force_qualify) overrides the soft
+  // AI checks (plausibility / location) but never bypasses genuinely missing
+  // core fields or the legal review.
+  const forced = lead.verification && lead.verification.force_qualify === true;
+  if (missing.length > 0 || (!forced && (!business_plausible || !metro_consistent))) {
     // Incomplete / ambiguous → intake clarification draft into the email queue.
     const intake = await getIntakeProject(lead.org_id, actingUser);
     await prisma.email_campaigns.create({
