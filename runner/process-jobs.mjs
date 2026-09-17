@@ -539,6 +539,17 @@ async function processLead(lead) {
   if (!core_offer) missing.push("core_offer");
   if (phoneValid === false) missing.push("valid_phone");
 
+  // Plain-English explanation of why a lead needs info — surfaced in the UI so
+  // the operator knows exactly what to add. Covers both missing fields AND the
+  // AI plausibility / location checks (which have no "missing" field).
+  const needs_info_reason = [];
+  if (!company_name) needs_info_reason.push("a company or brand name");
+  if (!core_offer) needs_info_reason.push("a clearer description of the product or offer");
+  if (!metro_area) needs_info_reason.push("the city or metro area being targeted");
+  if (phoneValid === false) needs_info_reason.push("a valid contact phone number");
+  if (business_plausible === false) needs_info_reason.push("more detail — the business/offer wasn't specific enough to verify");
+  if (metro_consistent === false) needs_info_reason.push("confirmation of the location — it didn't clearly line up with the business details");
+
   const verification = {
     extracted: { company_name, metro_area, niche, core_offer },
     phone: { value: phoneE164, e164_valid: phoneValid },
@@ -547,6 +558,7 @@ async function processLead(lead) {
     legal_safe,
     legal_issues,
     missing,
+    needs_info_reason,
     audited_at: new Date().toISOString(),
   };
 
@@ -567,11 +579,11 @@ async function processLead(lead) {
         from_email: "launch@skirrnow.app",
         template_html: "<div>pending</div>",
         status: "queued",
-        generation_brief: `Write a short, friendly clarification email to a prospect (${lead.email}) whose intake was incomplete/ambiguous. Politely request: ${missing.join(", ") || "confirmation of their business details, metro area, and offer"}. Keep it brief with one clear reply CTA. No claims or pricing.`,
+        generation_brief: `Write a short, friendly clarification email to a prospect (${lead.email}) whose intake was incomplete/ambiguous. Politely request: ${needs_info_reason.join("; ") || "confirmation of their business details, metro area, and offer"}. Keep it brief with one clear reply CTA. No claims or pricing.`,
       },
     });
     await prisma.lead.update({ where: { id: lead.id }, data: { status: "NEEDS_INFO", verification } });
-    console.log(`[runner] lead ${lead.id} NEEDS_INFO (missing: ${missing.join(",") || "plausibility"}) — clarification drafted.`);
+    console.log(`[runner] lead ${lead.id} NEEDS_INFO (needs: ${needs_info_reason.join("; ") || "plausibility"}) — clarification drafted.`);
     return;
   }
 
