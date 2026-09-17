@@ -61,7 +61,16 @@ jobs:
           mkdir -p "$HOME/.config/higgsfield"
           printf '%s' "$HIGGSFIELD_CREDENTIALS" > "$HOME/.config/higgsfield/credentials.json"
           printf '%s' "$HIGGSFIELD_CONFIG" > "$HOME/.config/higgsfield/config.json"
-          higgsfield account status || echo "auth check failed — refresh HIGGSFIELD_CREDENTIALS"
+          # Preflight: gate media generation on live auth. When it fails, the
+          # runner skips Higgsfield assets (leaving them queued) instead of
+          # error-thrashing; Claude-only jobs still run. The local 12h
+          # secret-sync task re-auths and refreshes the secret.
+          if higgsfield account status; then
+            echo "HF_AUTH_OK=true" >> "$GITHUB_ENV"
+          else
+            echo "HF_AUTH_OK=false" >> "$GITHUB_ENV"
+            echo "::warning::Higgsfield auth is down — image/video generation paused until re-auth (run 'higgsfield auth login')."
+          fi
 
       - name: Install Claude Code CLI
         # Copy generation shells out to `claude -p`; the binary must be on PATH.
