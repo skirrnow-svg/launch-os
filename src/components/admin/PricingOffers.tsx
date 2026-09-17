@@ -11,6 +11,8 @@ import { useEffect, useState } from "react";
 type Tier = { slug: string; name: string; priceInr: number; creditsPerMonth: number };
 type Offer = { welcomeCredits: number; introDiscountPercent: number; offerActive: boolean; offerLabel: string | null };
 type BuilderGate = { basicMin: number; advancedMin: number };
+type ActionCosts = { video: number; image: number };
+type FreeAction = { key: string; label: string; note: string };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -19,9 +21,12 @@ export default function PricingOffers() {
   const [defaults, setDefaults] = useState<Tier[]>([]);
   const [offer, setOffer] = useState<Offer | null>(null);
   const [gate, setGate] = useState<BuilderGate | null>(null);
+  const [costs, setCosts] = useState<ActionCosts | null>(null);
+  const [freeActions, setFreeActions] = useState<FreeAction[]>([]);
   const [savingSlug, setSavingSlug] = useState("");
   const [savingOffer, setSavingOffer] = useState(false);
   const [savingGate, setSavingGate] = useState(false);
+  const [savingCosts, setSavingCosts] = useState(false);
   const [msg, setMsg] = useState("");
 
   async function load() {
@@ -33,6 +38,8 @@ export default function PricingOffers() {
       setDefaults(d.defaults ?? []);
       setOffer(d.offer ?? null);
       setGate(d.builderGate ?? null);
+      setCosts(d.actionCosts ?? null);
+      setFreeActions(d.freeActions ?? []);
     } catch { /* non-fatal */ }
   }
   useEffect(() => { load(); }, []);
@@ -63,6 +70,24 @@ export default function PricingOffers() {
     if (!def) return;
     setTier(slug, { priceInr: def.priceInr, creditsPerMonth: def.creditsPerMonth });
     await saveTier({ ...def });
+  }
+
+  async function saveCosts() {
+    if (!costs) return;
+    setSavingCosts(true); setMsg("");
+    try {
+      const res = await fetch("/api/admin/pricing", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionCosts: { video: costs.video, image: costs.image } }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Save failed.");
+      if (d.actionCosts) setCosts(d.actionCosts);
+      setMsg("Saved per-action credit costs.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Save failed.");
+    } finally { setSavingCosts(false); }
   }
 
   async function saveGate() {
@@ -165,6 +190,47 @@ export default function PricingOffers() {
           </tbody>
         </table>
       </div>
+
+      {/* Per-action credit costs */}
+      <h3 className="mt-8 font-display text-lg font-bold tracking-tight">Per-action credit costs</h3>
+      <p className="mt-1 text-sm text-slate-500">
+        One shared credit wallet, different burn rates per action. These set the pre-flight estimate
+        and the amount charged against a workspace&apos;s monthly credits for each generation. Copy and
+        web pages cost no credits — they are governed by each plan&apos;s token and page allowances.
+      </p>
+      {costs && (
+        <div className="mt-4 rounded border border-slate-200 bg-white p-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Video — credits / generation</label>
+              <input type="number" min={0} value={costs.video}
+                onChange={(e) => setCosts({ ...costs, video: Number(e.target.value) })}
+                className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Image — credits / generation</label>
+              <input type="number" min={0} value={costs.image}
+                onChange={(e) => setCosts({ ...costs, image: Number(e.target.value) })}
+                className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+            </div>
+          </div>
+          {freeActions.length > 0 && (
+            <ul className="mt-4 space-y-1 border-t border-slate-100 pt-3">
+              {freeActions.map((f) => (
+                <li key={f.key} className="flex items-center gap-2 text-xs text-slate-500">
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">0 credits</span>
+                  <span className="font-medium text-slate-700">{f.label}</span>
+                  <span className="text-slate-400">— {f.note}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button onClick={saveCosts} disabled={savingCosts}
+            className="mt-4 rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
+            {savingCosts ? "Saving…" : "Save costs"}
+          </button>
+        </div>
+      )}
 
       {/* Signup offer */}
       <h3 className="mt-8 font-display text-lg font-bold tracking-tight">Signup offer</h3>

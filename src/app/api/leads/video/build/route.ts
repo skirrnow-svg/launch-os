@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveBuilderAccess } from "@/lib/billing/builderGate";
-import { staticCreditEstimate, modelFor, triggerRunner } from "@/lib/jobs";
+import { modelFor, triggerRunner } from "@/lib/jobs";
+import { creditCostFor } from "@/lib/billing/actionCosts";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
 import { withErrors } from "@/lib/api";
@@ -91,7 +92,7 @@ export const POST = withErrors(async (request: Request) => {
   }
   const confirmed = body.confirmed === true;
 
-  const estimatedCredits = staticCreditEstimate("video");
+  const estimatedCredits = await creditCostFor("video");
 
   if (!confirmed) {
     return NextResponse.json({

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { staticCreditEstimate, modelFor, triggerRunner } from "@/lib/jobs";
+import { modelFor, triggerRunner } from "@/lib/jobs";
+import { creditCostFor } from "@/lib/billing/actionCosts";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
 import { withErrors } from "@/lib/api";
@@ -42,18 +43,19 @@ export const POST = withErrors<Ctx>(async (request, { params }) => {
   const kind = asset.type as Kind;
   const body = (await request.json().catch(() => ({}))) as { confirmed?: unknown };
   const confirmed = body.confirmed === true;
+  const estimatedCredits = await creditCostFor(kind);
 
   if (!confirmed) {
     return NextResponse.json({
       status: "confirmation-required",
-      estimatedCredits: staticCreditEstimate(kind),
+      estimatedCredits,
       model: modelFor(kind),
       estimate: "approximate",
     });
   }
 
   try {
-    await assertOrgBudget(org.id, staticCreditEstimate(kind));
+    await assertOrgBudget(org.id, estimatedCredits);
   } catch (e) {
     if (isBudgetExceeded(e)) {
       return NextResponse.json({ status: "budget-exceeded", message: e.message }, { status: 200 });

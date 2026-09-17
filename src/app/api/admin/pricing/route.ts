@@ -5,6 +5,7 @@ import { withErrors } from "@/lib/api";
 import { BILLING_TIERS } from "@/lib/billing/plans";
 import { effectiveTiers, getSignupOffer } from "@/lib/billing/pricing";
 import { getBuilderThresholds } from "@/lib/billing/builderGate";
+import { getActionCosts, FREE_ACTIONS } from "@/lib/billing/actionCosts";
 import { recordAudit } from "@/lib/audit";
 
 export const runtime = "nodejs";
@@ -40,10 +41,11 @@ export const GET = withErrors<unknown>(async () => {
   } catch (e) {
     return forbidden(e);
   }
-  const [tiers, offer, builderGate] = await Promise.all([
+  const [tiers, offer, builderGate, actionCosts] = await Promise.all([
     effectiveTiers(),
     getSignupOffer(),
     getBuilderThresholds(),
+    getActionCosts(),
   ]);
   return NextResponse.json({
     tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
@@ -51,6 +53,9 @@ export const GET = withErrors<unknown>(async () => {
     offer,
     // AI Video Prompt Builder unlock thresholds (by plan monthly credits).
     builderGate,
+    // Per-action credit costs (one wallet, different burn rates) + free actions.
+    actionCosts,
+    freeActions: FREE_ACTIONS,
   });
 });
 
@@ -122,17 +127,38 @@ export const PATCH = withErrors<unknown>(async (request) => {
     }
   }
 
+  // Per-action credit costs.
+  const actionCosts = body.actionCosts as Record<string, unknown> | undefined;
+  if (actionCosts) {
+    const data: Record<string, unknown> = { updated_at: new Date() };
+    const video = intOrNull(actionCosts.video);
+    const image = intOrNull(actionCosts.image);
+    if (video !== undefined && video !== null) data.credit_cost_video = video;
+    if (image !== undefined && image !== null) data.credit_cost_image = image;
+    if (Object.keys(data).length > 1) {
+      await prisma.platform_settings.upsert({
+        where: { id: "singleton" },
+        update: data,
+        create: { id: "singleton", ...data },
+      });
+      await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "actionCosts.update", resourceType: "actionCosts", changes: { video, image } });
+      touched = true;
+    }
+  }
+
   if (!touched) return NextResponse.json({ error: "Nothing to update." }, { status: 400 });
 
-  const [tiers, updatedOffer, updatedGate] = await Promise.all([
+  const [tiers, updatedOffer, updatedGate, updatedCosts] = await Promise.all([
     effectiveTiers(),
     getSignupOffer(),
     getBuilderThresholds(),
+    getActionCosts(),
   ]);
   return NextResponse.json({
     ok: true,
     tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
     offer: updatedOffer,
     builderGate: updatedGate,
+    actionCosts: updatedCosts,
   });
 });
