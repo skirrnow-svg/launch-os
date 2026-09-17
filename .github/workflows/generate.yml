@@ -34,8 +34,22 @@ jobs:
         run: npx prisma generate
 
       - name: Install Higgsfield CLI
+        # The install script is fetched from raw.githubusercontent.com, which
+        # intermittently 403s (rate-limit/hiccup) and would otherwise fail the
+        # whole scheduled run. Retry with backoff before giving up.
         run: |
-          curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh
+          for attempt in 1 2 3 4 5; do
+            if curl -fsSL https://raw.githubusercontent.com/higgsfield-ai/cli/main/install.sh | sh; then
+              echo "Higgsfield CLI installed (attempt $attempt)."
+              break
+            fi
+            if [ "$attempt" = "5" ]; then
+              echo "Higgsfield CLI install failed after $attempt attempts." >&2
+              exit 1
+            fi
+            echo "Install attempt $attempt failed; retrying in $((attempt * 10))s..." >&2
+            sleep $((attempt * 10))
+          done
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           echo "/usr/local/bin" >> "$GITHUB_PATH"
 
