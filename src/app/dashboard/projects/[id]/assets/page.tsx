@@ -49,6 +49,16 @@ export default function ProjectAssetsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  // Auto-refresh while any media asset is still queued/generating, so its
+  // status flips to Ready (or Error) on its own without a manual refresh.
+  useEffect(() => {
+    const busy = assets.some((a) => a.status === "queued" || a.status === "generating");
+    if (!busy) return;
+    const t = setTimeout(() => { void load(); }, 5000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets]);
+
   const NOTICES: Record<string, string> = {
     ready: "Generated. The result is saved on the asset.",
     "prompt-ready": "Prompt refined and saved. Media generation isn't wired to the provider yet.",
@@ -238,13 +248,20 @@ export default function ProjectAssetsPage() {
                   </p>
                 ) : null}
                 {(a.type === "image" || a.type === "video") && a.prompt && !a.url && (
-                  <button
-                    onClick={() => generateMedia(a.id)}
-                    disabled={busyId === a.id}
-                    className="mt-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
-                  >
-                    {busyId === a.id ? "Generating…" : "Generate media (shows cost first)"}
-                  </button>
+                  a.status === "queued" || a.status === "generating" ? (
+                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-400" aria-hidden />
+                      {a.status === "generating" ? "Generating…" : "Queued — generating…"}
+                    </span>
+                  ) : (
+                    <button
+                      onClick={() => generateMedia(a.id)}
+                      disabled={busyId === a.id}
+                      className="mt-2 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
+                    >
+                      {busyId === a.id ? "Starting…" : a.status === "error" ? "Retry — generate media" : "Generate media (shows cost first)"}
+                    </button>
+                  )
                 )}
               </li>
             ))}
