@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * Reads/writes /api/admin/pricing (requireAdmin-gated). Blank price/credits =
  * fall back to the built-in default for that tier.
  */
-type Tier = { slug: string; name: string; priceInr: number; creditsPerMonth: number };
+type Tier = { slug: string; name: string; priceInr: number; creditsPerMonth: number; landingPages: number };
 type Offer = { welcomeCredits: number; introDiscountPercent: number; offerActive: boolean; offerLabel: string | null };
 type BuilderGate = { basicMin: number; advancedMin: number };
 type ActionCosts = { video: number; image: number };
@@ -54,7 +54,7 @@ export default function PricingOffers() {
       const res = await fetch("/api/admin/pricing", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tier: { slug: t.slug, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth } }),
+        body: JSON.stringify({ tier: { slug: t.slug, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth, landingPages: t.landingPages } }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Save failed.");
@@ -68,7 +68,7 @@ export default function PricingOffers() {
   async function resetTier(slug: string) {
     const def = defaults.find((d) => d.slug === slug);
     if (!def) return;
-    setTier(slug, { priceInr: def.priceInr, creditsPerMonth: def.creditsPerMonth });
+    setTier(slug, { priceInr: def.priceInr, creditsPerMonth: def.creditsPerMonth, landingPages: def.landingPages });
     await saveTier({ ...def });
   }
 
@@ -144,13 +144,14 @@ export default function PricingOffers() {
               <th className="px-4 py-3 font-medium">Plan</th>
               <th className="px-4 py-3 font-medium">Price ₹/mo</th>
               <th className="px-4 py-3 font-medium">Credits/mo</th>
+              <th className="px-4 py-3 font-medium">Landing pages</th>
               <th className="px-4 py-3 font-medium">Default</th>
               <th className="px-4 py-3 font-medium" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {tiers == null ? (
-              <tr><td className="px-4 py-4 text-slate-500" colSpan={5}>Loading…</td></tr>
+              <tr><td className="px-4 py-4 text-slate-500" colSpan={6}>Loading…</td></tr>
             ) : tiers.map((t) => {
               const def = defaults.find((d) => d.slug === t.slug);
               return (
@@ -169,8 +170,13 @@ export default function PricingOffers() {
                       onChange={(e) => setTier(t.slug, { creditsPerMonth: Number(e.target.value) })}
                       className="w-24 rounded border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
                   </td>
+                  <td className="px-4 py-3">
+                    <input type="number" min={0} value={t.landingPages}
+                      onChange={(e) => setTier(t.slug, { landingPages: Number(e.target.value) })}
+                      className="w-20 rounded border border-slate-300 bg-slate-50 px-2 py-1.5 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+                  </td>
                   <td className="px-4 py-3 text-xs text-slate-400 tabular-nums">
-                    {def ? `${inr(def.priceInr)} · ${def.creditsPerMonth}cr` : "—"}
+                    {def ? `${inr(def.priceInr)} · ${def.creditsPerMonth}cr · ${def.landingPages}pg` : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex justify-end gap-2">

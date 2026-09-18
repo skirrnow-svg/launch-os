@@ -69,7 +69,6 @@ export const BILLING_TIERS: BillingTier[] = [
     tagline: "For solopreneurs getting started.",
     features: [
       "Full lead pipeline: qualify → verify → legal → sample copy",
-      "~5 sample concept videos / month",
       "1-click approve gate",
       "Email support",
     ],
@@ -87,7 +86,6 @@ export const BILLING_TIERS: BillingTier[] = [
     tagline: "For busy solopreneurs & small agencies.",
     features: [
       "Everything in Starter",
-      "~15 sample concept videos / month",
       "Priority support",
       "Own lead-intake funnel",
     ],
@@ -105,7 +103,6 @@ export const BILLING_TIERS: BillingTier[] = [
     tagline: "For agencies running high lead volume.",
     features: [
       "Everything in Growth",
-      "~30 sample concept videos / month",
       "Dedicated support",
     ],
   },

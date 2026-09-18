@@ -48,8 +48,8 @@ export const GET = withErrors<unknown>(async () => {
     getActionCosts(),
   ]);
   return NextResponse.json({
-    tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
-    defaults: BILLING_TIERS.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
+    tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth, landingPages: t.landingPages })),
+    defaults: BILLING_TIERS.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth, landingPages: t.landingPages })),
     offer,
     // AI Video Prompt Builder unlock thresholds (by plan monthly credits).
     builderGate,
@@ -77,15 +77,17 @@ export const PATCH = withErrors<unknown>(async (request) => {
     }
     const price = intOrNull(tier.priceInr);
     const credits = intOrNull(tier.creditsPerMonth);
-    const data: { price_inr?: number | null; credits_per_month?: number | null; updated_at: Date } = { updated_at: new Date() };
+    const landing = intOrNull(tier.landingPages);
+    const data: { price_inr?: number | null; credits_per_month?: number | null; landing_pages?: number | null; updated_at: Date } = { updated_at: new Date() };
     if (price !== undefined) data.price_inr = price;
     if (credits !== undefined) data.credits_per_month = credits;
+    if (landing !== undefined) data.landing_pages = landing;
     await prisma.pricing_overrides.upsert({
       where: { slug: tier.slug },
       update: data,
-      create: { slug: tier.slug, price_inr: price ?? null, credits_per_month: credits ?? null },
+      create: { slug: tier.slug, price_inr: price ?? null, credits_per_month: credits ?? null, landing_pages: landing ?? null },
     });
-    await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "pricing.update", resourceType: "pricing", changes: { slug: tier.slug, priceInr: price, creditsPerMonth: credits } });
+    await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "pricing.update", resourceType: "pricing", changes: { slug: tier.slug, priceInr: price, creditsPerMonth: credits, landingPages: landing } });
     touched = true;
   }
 
@@ -156,7 +158,7 @@ export const PATCH = withErrors<unknown>(async (request) => {
   ]);
   return NextResponse.json({
     ok: true,
-    tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth })),
+    tiers: tiers.map((t) => ({ slug: t.slug, name: t.name, priceInr: t.priceInr, creditsPerMonth: t.creditsPerMonth, landingPages: t.landingPages })),
     offer: updatedOffer,
     builderGate: updatedGate,
     actionCosts: updatedCosts,

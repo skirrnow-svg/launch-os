@@ -37,11 +37,24 @@ export async function effectiveTiers(): Promise<BillingTier[]> {
       if (!o) return t;
       const priceInr = o.price_inr ?? t.priceInr;
       const creditsPerMonth = o.credits_per_month ?? t.creditsPerMonth;
-      return { ...t, priceInr, amountPaise: priceInr * 100, creditsPerMonth };
+      const landingPages = o.landing_pages ?? t.landingPages;
+      return { ...t, priceInr, amountPaise: priceInr * 100, creditsPerMonth, landingPages };
     });
   } catch {
     return BILLING_TIERS;
   }
+}
+
+/**
+ * The effective landing-page allowance for a plan slug (admin override → code
+ * default). Used by the landing quota so an admin edit takes effect. Returns
+ * null for an unknown/absent slug (caller falls back to the account-type quota).
+ */
+export async function effectiveLandingPagesForPlan(slug: string | null | undefined): Promise<number | null> {
+  if (!slug) return null;
+  const tiers = await effectiveTiers();
+  const t = tiers.find((x) => x.slug === slug);
+  return t ? t.landingPages : null;
 }
 
 /** The current signup offer, or the inert default if unset / DB unreachable. */

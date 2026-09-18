@@ -97,6 +97,27 @@ export default function BillingPage() {
         </div>
       </div>
 
+      {/* Out of credits — surface the top-up path and per-action costs. */}
+      {loaded && cap != null && remaining != null && remaining <= 0 && (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <div className="font-semibold text-amber-900">You have used all your monthly credits</div>
+          <p className="mt-1 text-sm text-amber-800">
+            New video and image generation is paused until your next billing cycle. Ad copy and
+            landing pages are unaffected — they cost no credits.
+            {costs && (
+              <> Each video costs from ~{costs.video} credits and each image {costs.image} credits.</>
+            )}
+          </p>
+          <p className="mt-3 text-sm font-medium text-amber-900">
+            Need more now? Move to a higher plan below for a larger monthly allowance.
+          </p>
+          <p className="mt-1 text-xs text-amber-700">
+            One-off credit top-ups activate once payment setup is complete; meanwhile your workspace
+            admin can raise your monthly cap.
+          </p>
+        </div>
+      )}
+
       {/* Tier cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {tiers.map((t) => (

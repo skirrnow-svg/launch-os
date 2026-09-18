@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { webPageQuota } from "@/lib/billing/entitlements";
+import { effectiveLandingPagesForPlan } from "@/lib/billing/pricing";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,20 @@ async function activePlanSlug(orgId: string): Promise<string | null> {
   return sub && (sub.status === "active" || sub.status === "trialing") ? sub.plan_slug : null;
 }
 
+/**
+ * The workspace's landing-page quota. Admins are unlimited; an active plan uses
+ * its admin-editable allowance (override → code default); otherwise the
+ * account-type default applies.
+ */
+async function resolveLandingQuota(orgId: string, accountType: string | null, isAdmin: boolean): Promise<number> {
+  const planSlug = await activePlanSlug(orgId);
+  if (!isAdmin && planSlug) {
+    const eff = await effectiveLandingPagesForPlan(planSlug);
+    if (eff != null) return eff;
+  }
+  return webPageQuota(accountType, isAdmin, planSlug);
+}
+
 /** GET — list the project's landing pages + the workspace's quota usage. */
 export async function GET(_request: Request, { params }: Ctx) {
   const { user, org } = await getContext();
@@ -31,7 +46,7 @@ export async function GET(_request: Request, { params }: Ctx) {
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const isAdmin = isPlatformAdmin(user.email);
-  const quota = webPageQuota(org.account_type, isAdmin, await activePlanSlug(org.id));
+  const quota = await resolveLandingQuota(org.id, org.account_type, isAdmin);
   const [pages, used] = await Promise.all([
     prisma.landing_pages.findMany({
       where: { project_id: project.id },
@@ -60,7 +75,7 @@ export async function POST(request: Request, { params }: Ctx) {
   if (!project) return NextResponse.json({ error: "Not found." }, { status: 404 });
 
   const isAdmin = isPlatformAdmin(user.email);
-  const quota = webPageQuota(org.account_type, isAdmin, await activePlanSlug(org.id));
+  const quota = await resolveLandingQuota(org.id, org.account_type, isAdmin);
   const used = await prisma.landing_pages.count({ where: { org_id: org.id } });
   if (used >= quota) {
     return NextResponse.json({
