@@ -20,12 +20,30 @@ export async function GET() {
   for (const n of names) present[n] = Boolean(process.env[n] && process.env[n]!.trim());
 
   const keyId = (process.env.RAZORPAY_KEY_ID ?? "").trim();
+  const keySecret = (process.env.RAZORPAY_KEY_SECRET ?? "").trim();
   const mode = keyId.startsWith("rzp_live") ? "live" : keyId.startsWith("rzp_test") ? "test" : keyId ? "unknown" : "unset";
+
+  // Live credential check: does THIS server's key pair authenticate at Razorpay?
+  // Reveals only ok/status, never the secret. (idLen/secretLen help spot a
+  // truncated paste without exposing the value.)
+  let credentialCheck: { ok: boolean; status?: number; error?: string } | null = null;
+  if (keyId && keySecret) {
+    try {
+      const auth = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+      const r = await fetch("https://api.razorpay.com/v1/plans?count=1", { headers: { Authorization: auth }, cache: "no-store" });
+      credentialCheck = { ok: r.status === 200, status: r.status };
+    } catch (e) {
+      credentialCheck = { ok: false, error: e instanceof Error ? e.message : "fetch failed" };
+    }
+  }
 
   return NextResponse.json({
     configured: present.RAZORPAY_KEY_ID && present.RAZORPAY_KEY_SECRET,
     mode,
     keyIdPrefix: keyId ? keyId.slice(0, 8) : null,
+    idLen: keyId.length,
+    secretLen: keySecret.length,
+    credentialCheck,
     present,
     node: process.version,
   });
