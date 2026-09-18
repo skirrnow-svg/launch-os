@@ -30,6 +30,7 @@ export type Entitlement = {
   claude: { cap: number; source: "override" | "plan" | "free" };
   period: Period;
   periodLabel: string;                     // human, e.g. "1 Sep – 1 Oct 2026"
+  cancelAtPeriodEnd: boolean;              // true = recurring billing stopped; access ends at period end
 };
 
 /** Add whole months to a date, clamping the day to the target month's length. */
@@ -101,6 +102,7 @@ export async function getEntitlement(org: OrgCapsRow): Promise<Entitlement> {
     claude: { cap: claudeCap, source: claudeSource },
     period,
     periodLabel: `${fmtDate(period.start)} – ${fmtDate(period.end)}`,
+    cancelAtPeriodEnd: Boolean(active && sub?.cancel_at_period_end),
   };
 }
 

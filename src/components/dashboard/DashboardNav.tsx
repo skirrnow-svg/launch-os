@@ -25,6 +25,7 @@ const BASE = [
   { href: "/dashboard/reports", label: "Reports" },
   { href: "/dashboard/usage", label: "Usage" },
   { href: "/dashboard/billing", label: "Billing" },
+  { href: "/dashboard/settings", label: "Settings" },
 ];
 
 export default function DashboardNav() {

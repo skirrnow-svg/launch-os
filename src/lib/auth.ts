@@ -67,7 +67,9 @@ export async function getOrCreateUser() {
     email;
   return prisma.users.upsert({
     where: { auth_id: clerkUser.id },
-    update: { email, name, avatar_url: clerkUser.imageUrl ?? undefined },
+    // deleted_at: null reactivates a deactivated account on next sign-in. A
+    // permanently deleted user's Clerk login is gone, so it never reaches here.
+    update: { email, name, avatar_url: clerkUser.imageUrl ?? undefined, deleted_at: null },
     create: {
       auth_id: clerkUser.id,
       email,

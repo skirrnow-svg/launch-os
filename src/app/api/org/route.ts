@@ -39,6 +39,9 @@ export async function GET() {
       name: ent.planName,
       status: ent.status,
       isPaid: ent.planSlug != null || isAdmin,
+      cancelAtPeriodEnd: ent.cancelAtPeriodEnd,
+      periodEnd: ent.period.end.toISOString(),
+      periodLabel: ent.periodLabel,
       // AI Video Prompt Builder access: "none" | "basic" | "advanced", plus the
       // (admin-editable) credit thresholds so the UI can explain what unlocks what.
       builder: {

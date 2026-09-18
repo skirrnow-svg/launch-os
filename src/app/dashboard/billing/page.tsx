@@ -36,6 +36,9 @@ export default function BillingPage() {
   const [planSlug, setPlanSlug] = useState<string | null>(null);
   const [busySlug, setBusySlug] = useState<string | null>(null);
   const [notice, setNotice] = useState<string>("");
+  const [cancelAtPeriodEnd, setCancelAtPeriodEnd] = useState(false);
+  const [periodEnd, setPeriodEnd] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -45,6 +48,8 @@ export default function BillingPage() {
         if (!active) return;
         setBudget(d.budget ?? null);
         setPlanSlug(d.plan?.slug ?? null);
+        setCancelAtPeriodEnd(Boolean(d.plan?.cancelAtPeriodEnd));
+        setPeriodEnd(d.plan?.periodEnd ?? null);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
@@ -119,6 +124,26 @@ export default function BillingPage() {
     }
   }
 
+  const fmtDate = (iso: string | null) =>
+    iso ? new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "";
+
+  async function cancelSubscription() {
+    if (!window.confirm(
+      `Cancel your subscription?\n\nBilling stops — you will NOT be charged again — but you keep your current plan and credits until ${fmtDate(periodEnd) || "the end of this billing period"}. After that your workspace moves to the free tier.`,
+    )) return;
+    setCancelling(true); setNotice("");
+    try {
+      const res = await fetch("/api/billing/cancel", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't cancel.");
+      setCancelAtPeriodEnd(true);
+      if (data.accessUntil) setPeriodEnd(data.accessUntil);
+      setNotice(`Subscription cancelled. You keep your plan until ${fmtDate(data.accessUntil) || "the period ends"}.`);
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Couldn't cancel.");
+    } finally { setCancelling(false); }
+  }
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-extrabold tracking-tight">Plans &amp; billing</h1>
@@ -157,6 +182,25 @@ export default function BillingPage() {
             {!loaded ? "…" : cap == null ? "—" : remaining}
           </div>
         </div>
+        {loaded && planSlug && (
+          <div className="ml-auto">
+            {cancelAtPeriodEnd ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-right text-xs text-amber-800">
+                <div className="font-semibold">Cancels on {fmtDate(periodEnd)}</div>
+                <div>Access continues until then.</div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={cancelSubscription}
+                disabled={cancelling}
+                className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-50"
+              >
+                {cancelling ? "Cancelling…" : "Cancel subscription"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Out of credits — surface the top-up path and per-action costs. */}

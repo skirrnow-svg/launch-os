@@ -32,7 +32,7 @@ async function activate(orgId: string, planSlug: string, subId: string | undefin
     where: { org_id: orgId },
     update: {
       plan_slug: planSlug, status: "active", provider: "razorpay",
-      external_id: subId, updated_at: new Date(),
+      external_id: subId, cancel_at_period_end: false, updated_at: new Date(),
       ...(roll ? { anchor_at: new Date() } : {}),
     },
     create: {
@@ -51,7 +51,7 @@ async function activate(orgId: string, planSlug: string, subId: string | undefin
 async function downgrade(orgId: string) {
   const offer = await getSignupOffer();
   await prisma.subscriptions
-    .update({ where: { org_id: orgId }, data: { status: "canceled", updated_at: new Date() } })
+    .update({ where: { org_id: orgId }, data: { status: "canceled", cancel_at_period_end: false, updated_at: new Date() } })
     .catch(() => null);
   await prisma.organizations
     .update({ where: { id: orgId }, data: { plan: "free", credit_cap: offer.welcomeCredits } })
