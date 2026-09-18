@@ -33,6 +33,9 @@ export default function BillingPage() {
   const [offer, setOffer] = useState<Offer>(null);
   const [costs, setCosts] = useState<ActionCosts | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [planSlug, setPlanSlug] = useState<string | null>(null);
+  const [busySlug, setBusySlug] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string>("");
 
   useEffect(() => {
     let active = true;
@@ -41,6 +44,7 @@ export default function BillingPage() {
       .then((d) => {
         if (!active) return;
         setBudget(d.budget ?? null);
+        setPlanSlug(d.plan?.slug ?? null);
         setLoaded(true);
       })
       .catch(() => setLoaded(true));
@@ -60,6 +64,60 @@ export default function BillingPage() {
 
   const cap = budget?.cap ?? null;
   const remaining = budget?.remaining ?? null;
+
+  function loadRazorpay(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (typeof window === "undefined") return resolve(false);
+      if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve(true);
+      const s = document.createElement("script");
+      s.src = "https://checkout.razorpay.com/v1/checkout.js";
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.body.appendChild(s);
+    });
+  }
+
+  async function startCheckout(slug: string) {
+    setNotice(""); setBusySlug(slug);
+    try {
+      const ok = await loadRazorpay();
+      if (!ok) throw new Error("Couldn't load the payment window. Check your connection and retry.");
+      const res = await fetch("/api/billing/checkout", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slug }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Couldn't start checkout.");
+
+      const Rz = (window as unknown as { Razorpay: new (o: Record<string, unknown>) => { open: () => void } }).Razorpay;
+      const rzp = new Rz({
+        key: data.keyId,
+        subscription_id: data.subscriptionId,
+        name: "SkirrNow",
+        description: `${slug.charAt(0).toUpperCase()}${slug.slice(1)} plan`,
+        prefill: data.prefill ?? {},
+        theme: { color: "#4f46e5" },
+        handler: () => {
+          // The webhook is the source of truth; poll /api/org until it flips.
+          setNotice("Payment received — activating your plan…");
+          let tries = 0;
+          const iv = setInterval(async () => {
+            tries += 1;
+            try {
+              const r = await fetch("/api/org");
+              const d = await r.json();
+              if (d.plan?.slug === slug || tries > 10) { clearInterval(iv); window.location.reload(); }
+            } catch { if (tries > 10) { clearInterval(iv); window.location.reload(); } }
+          }, 2000);
+        },
+        modal: { ondismiss: () => setBusySlug(null) },
+      });
+      rzp.open();
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "Couldn't start checkout.");
+      setBusySlug(null);
+    }
+  }
 
   return (
     <div className="max-w-4xl">
@@ -123,6 +181,12 @@ export default function BillingPage() {
         </div>
       )}
 
+      {notice && (
+        <p role="status" className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm text-indigo-700">
+          {notice}
+        </p>
+      )}
+
       {/* Tier cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         {tiers.map((t) => (
@@ -156,20 +220,26 @@ export default function BillingPage() {
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
-              disabled
-              title="Billing activates once payment setup is complete"
-              className="mt-5 rounded-xl bg-slate-100 text-slate-400 font-semibold py-2.5 cursor-not-allowed border border-slate-200"
-            >
-              Choose {t.name}
-            </button>
+            {planSlug === t.slug ? (
+              <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50 py-2.5 text-center font-semibold text-emerald-700">
+                Current plan
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startCheckout(t.slug)}
+                disabled={busySlug !== null}
+                className="mt-5 rounded-xl bg-indigo-600 py-2.5 font-semibold text-white transition-colors hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {busySlug === t.slug ? "Starting…" : `Choose ${t.name}`}
+              </button>
+            )}
           </div>
         ))}
       </div>
 
       <p className="mt-5 text-xs text-slate-400">
-        Checkout activates once payment setup is finalized. Prices shown are the current plan catalog and may change.
+        Secure checkout by Razorpay. You can cancel anytime from your account. Prices shown are the current plan catalog and may change.
       </p>
     </div>
   );
