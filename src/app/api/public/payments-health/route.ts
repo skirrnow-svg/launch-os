@@ -37,6 +37,22 @@ export async function GET() {
     }
   }
 
+  // Plan-id check: does each configured plan actually resolve under this key?
+  // Reports the plan id (not a secret) + HTTP status so a wrong/truncated id is
+  // obvious. Only runs when the credentials authenticate.
+  const planChecks: Record<string, { id: string | null; len: number; valid: boolean; status?: number }> = {};
+  if (credentialCheck?.ok) {
+    const auth = "Basic " + Buffer.from(`${keyId}:${keySecret}`).toString("base64");
+    for (const k of ["RAZORPAY_PLAN_STARTER", "RAZORPAY_PLAN_GROWTH", "RAZORPAY_PLAN_SCALE"]) {
+      const pid = (process.env[k] ?? "").trim();
+      if (!pid) { planChecks[k] = { id: null, len: 0, valid: false }; continue; }
+      try {
+        const r = await fetch(`https://api.razorpay.com/v1/plans/${encodeURIComponent(pid)}`, { headers: { Authorization: auth }, cache: "no-store" });
+        planChecks[k] = { id: pid, len: pid.length, valid: r.status === 200, status: r.status };
+      } catch { planChecks[k] = { id: pid, len: pid.length, valid: false }; }
+    }
+  }
+
   return NextResponse.json({
     configured: present.RAZORPAY_KEY_ID && present.RAZORPAY_KEY_SECRET,
     mode,
@@ -44,6 +60,7 @@ export async function GET() {
     idLen: keyId.length,
     secretLen: keySecret.length,
     credentialCheck,
+    planChecks,
     present,
     node: process.version,
   });
