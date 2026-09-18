@@ -547,6 +547,7 @@ model pricing_overrides {
   slug              String   @id
   price_inr         Int?
   credits_per_month Int?
+  landing_pages     Int?
   updated_at        DateTime @default(now()) @db.Timestamptz(6)
 }
 
