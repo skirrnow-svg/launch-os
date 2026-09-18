@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
 /**
- * GET /api/billing/health — SAFE payment-config diagnostic (SN25).
+ * GET /api/public/payments-health — SAFE payment-config diagnostic (SN25).
  *
- * Reports whether the RUNNING server process can see each RAZORPAY_* var, so we
- * can tell "not set / wrong place / not restarted" apart from "typo". Reveals
- * only booleans + the key-id MODE (test/live) + a 4-char id prefix — never a
- * secret value. Temporary; remove once checkout is verified live.
+ * Public (under /api/public, so it isn't behind Clerk) so we can verify from
+ * outside whether the RUNNING server sees each RAZORPAY_* var. Reveals only
+ * booleans + the key-id MODE (test/live) + a 4-char prefix — never a secret
+ * value. Temporary; remove once checkout is verified live.
  */
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
