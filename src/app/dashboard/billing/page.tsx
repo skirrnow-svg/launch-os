@@ -18,7 +18,7 @@ type Tier = {
   approxVideosPerMonth: number; landingPages: number; tagline: string; features: string[];
 };
 type Offer = { offerLabel: string | null } | null;
-type ActionCosts = { video: number; image: number };
+type ActionCosts = { video: number; image: number; landing: number };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -70,7 +70,11 @@ export default function BillingPage() {
       {costs && (
         <p className="mt-1 text-sm text-slate-400">
           One shared credit pool — video from ~{costs.video} credits (rises with clip length, resolution and
-          quality), image {costs.image} credits. Ad copy and landing pages cost no credits.
+          quality), image {costs.image} credits
+          {costs.landing > 0
+            ? `, and each landing page beyond your plan's included pages ${costs.landing} credits`
+            : ""}
+          . Ad copy is free.
         </p>
       )}
 
@@ -102,8 +106,9 @@ export default function BillingPage() {
         <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-5">
           <div className="font-semibold text-amber-900">You have used all your monthly credits</div>
           <p className="mt-1 text-sm text-amber-800">
-            New video and image generation is paused until your next billing cycle. Ad copy and
-            landing pages are unaffected — they cost no credits.
+            New video and image generation is paused until your next billing cycle. Ad copy is
+            unaffected (free); landing pages within your plan&apos;s included quota still work, but
+            extra paid pages are paused.
             {costs && (
               <> Each video costs from ~{costs.video} credits and each image {costs.image} credits.</>
             )}
@@ -141,6 +146,7 @@ export default function BillingPage() {
             )}
             <div className="mt-0.5 text-sm text-slate-500">
               {t.landingPages} landing {t.landingPages === 1 ? "page" : "pages"}
+              {costs && costs.landing > 0 ? ` included, then ~${costs.landing} credits each` : ""}
             </div>
             <ul className="mt-4 flex-1 space-y-2">
               {t.features.map((f) => (

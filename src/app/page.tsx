@@ -114,9 +114,13 @@ const FEATURES = [
 // Pricing is derived from the effective billing catalog (code defaults +
 // platform-admin overrides), so the marketing page and the in-app billing
 // screen never drift. INR (₹).
-function buildPricing(tiers: BillingTier[], videoCost: number) {
+function buildPricing(tiers: BillingTier[], videoCost: number, landingCost: number) {
   return tiers.map((t, i) => {
     const videos = videoCost > 0 ? Math.floor(t.creditsPerMonth / videoCost) : 0;
+    const landingLine =
+      landingCost > 0
+        ? `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"} included, then ~${landingCost} credits each`
+        : `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`;
     return {
       name: t.name,
       price: inr(t.priceInr),
@@ -125,7 +129,7 @@ function buildPricing(tiers: BillingTier[], videoCost: number) {
       features: [
         `${t.creditsPerMonth} media credits / month — up to ~${videos} short videos`,
         `Video from ~${videoCost} credits (more for longer or HD clips)`,
-        `${t.landingPages} landing ${t.landingPages === 1 ? "page" : "pages"}`,
+        landingLine,
         ...t.features,
       ],
       cta: `Choose ${t.name}`,
@@ -170,7 +174,7 @@ export default async function HomePage() {
     getSignupOffer(),
     getActionCosts(),
   ]);
-  const PRICING = buildPricing(tiers, actionCosts.video);
+  const PRICING = buildPricing(tiers, actionCosts.video, actionCosts.landing);
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <SiteHeader />
@@ -351,7 +355,11 @@ export default async function HomePage() {
         </p>
         <p className="mt-2 text-sm text-slate-500">
           One shared credit pool — video from ~{actionCosts.video} credits (rises with clip length, resolution
-          and quality), image {actionCosts.image} credits. Ad copy and landing pages cost no credits.
+          and quality), image {actionCosts.image} credits
+          {actionCosts.landing > 0
+            ? `, and each landing page beyond your plan's included pages ${actionCosts.landing} credits`
+            : ""}
+          . Ad copy is free.
         </p>
         {offer.offerActive && offer.offerLabel && (
           <div className="mt-6 inline-flex items-center gap-2 rounded border border-accent bg-blue-50 px-4 py-2.5 text-sm font-medium text-accent">

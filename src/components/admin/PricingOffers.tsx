@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 type Tier = { slug: string; name: string; priceInr: number; creditsPerMonth: number; landingPages: number };
 type Offer = { welcomeCredits: number; introDiscountPercent: number; offerActive: boolean; offerLabel: string | null };
 type BuilderGate = { basicMin: number; advancedMin: number };
-type ActionCosts = { video: number; image: number };
+type ActionCosts = { video: number; image: number; landing: number };
 type FreeAction = { key: string; label: string; note: string };
 
 const inr = (n: number) => "₹" + n.toLocaleString("en-IN");
@@ -79,7 +79,7 @@ export default function PricingOffers() {
       const res = await fetch("/api/admin/pricing", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionCosts: { video: costs.video, image: costs.image } }),
+        body: JSON.stringify({ actionCosts: { video: costs.video, image: costs.image, landing: costs.landing } }),
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Save failed.");
@@ -202,12 +202,14 @@ export default function PricingOffers() {
       <p className="mt-1 text-sm text-slate-500">
         One shared credit wallet, different burn rates per action. Video is the <strong>base
         (minimum)</strong> cost of the cheapest clip (short, 480p); longer or higher-resolution clips
-        cost more, and it is shown to customers as &ldquo;from ~N credits&rdquo;. Copy and web pages cost
-        no credits — they are governed by each plan&apos;s token and page allowances.
+        cost more, and it is shown to customers as &ldquo;from ~N credits&rdquo;. Landing pages are
+        <strong> included free</strong> up to each plan&apos;s page allowance (set above); EXTRA pages
+        beyond that cost the landing rate (set it to 0 to keep the included quota as a hard cap). Ad
+        copy costs no credits.
       </p>
       {costs && (
         <div className="mt-4 rounded border border-slate-200 bg-white p-5">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Video — base (min) credits</label>
               <input type="number" min={0} value={costs.video}
@@ -218,6 +220,12 @@ export default function PricingOffers() {
               <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Image — credits / generation</label>
               <input type="number" min={0} value={costs.image}
                 onChange={(e) => setCosts({ ...costs, image: Number(e.target.value) })}
+                className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
+            </div>
+            <div>
+              <label className="font-mono text-[11px] uppercase tracking-wider text-slate-400">Landing — extra page credits</label>
+              <input type="number" min={0} value={costs.landing}
+                onChange={(e) => setCosts({ ...costs, landing: Number(e.target.value) })}
                 className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm tabular-nums text-slate-900 focus:border-accent focus:outline-none" />
             </div>
           </div>

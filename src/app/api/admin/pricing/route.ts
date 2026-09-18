@@ -135,15 +135,17 @@ export const PATCH = withErrors<unknown>(async (request) => {
     const data: Record<string, unknown> = { updated_at: new Date() };
     const video = intOrNull(actionCosts.video);
     const image = intOrNull(actionCosts.image);
+    const landing = intOrNull(actionCosts.landing);
     if (video !== undefined && video !== null) data.credit_cost_video = video;
     if (image !== undefined && image !== null) data.credit_cost_image = image;
+    if (landing !== undefined && landing !== null) data.credit_cost_landing = landing;
     if (Object.keys(data).length > 1) {
       await prisma.platform_settings.upsert({
         where: { id: "singleton" },
         update: data,
         create: { id: "singleton", ...data },
       });
-      await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "actionCosts.update", resourceType: "actionCosts", changes: { video, image } });
+      await recordAudit({ orgId: ctx.org.id, userId: ctx.user.id, action: "actionCosts.update", resourceType: "actionCosts", changes: { video, image, landing } });
       touched = true;
     }
   }

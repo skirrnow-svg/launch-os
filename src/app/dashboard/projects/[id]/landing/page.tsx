@@ -11,7 +11,7 @@ import Link from "next/link";
  * admin unlimited. Preview renders inside a sandboxed iframe.
  */
 type Page = { id: string; title: string; status: string; error: string | null; createdAt: string; updatedAt: string };
-type Quota = { limit: number | null; used: number; remaining: number | null; accountType: string; isAdmin: boolean };
+type Quota = { limit: number | null; used: number; remaining: number | null; accountType: string; isAdmin: boolean; overageCredits: number };
 
 const STATUS_TONE: Record<string, string> = {
   ready: "bg-emerald-50 text-emerald-700", queued: "bg-amber-50 text-amber-700",
@@ -52,18 +52,42 @@ export default function LandingPagesPage() {
     return () => { if (pollRef.current) clearTimeout(pollRef.current); };
   }, [pages, load]);
 
-  const atQuota = quota != null && quota.limit != null && quota.used >= quota.limit;
+  // Over the included quota. If extra pages have a credit price, generation is
+  // still allowed (charged); only a 0 landing price makes the quota a hard cap.
+  const overQuota = quota != null && quota.limit != null && quota.used >= quota.limit;
+  const overageCredits = quota?.overageCredits ?? 0;
+  const hardCapReached = overQuota && overageCredits <= 0 && !(quota?.isAdmin);
+  const overageActive = overQuota && overageCredits > 0 && !(quota?.isAdmin);
+
+  async function postCreate(confirmed: boolean) {
+    const res = await fetch(`/api/projects/${id}/landing`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, brief, confirmed }),
+    });
+    return { res, data: await res.json() };
+  }
 
   async function create(e: FormEvent) {
     e.preventDefault();
     setSaving(true); setError("");
     try {
-      const res = await fetch(`/api/projects/${id}/landing`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, brief }),
-      });
-      const data = await res.json();
+      let { res, data } = await postCreate(false);
       if (!res.ok) throw new Error(data.error || "Couldn't request the page.");
+
+      if (data.status === "confirmation-required") {
+        const ok = window.confirm(
+          `You have used your plan's ${data.quota} included landing page${data.quota === 1 ? "" : "s"}.\n\nThis extra page will use ~${data.estimatedCredits} credits. Generate it?`,
+        );
+        if (!ok) return;
+        ({ res, data } = await postCreate(true));
+        if (!res.ok) throw new Error(data.error || "Couldn't request the page.");
+      }
+
+      if (data.status === "budget-exceeded") {
+        setError(data.message || "Not enough credits — upgrade or free up credits.");
+        return;
+      }
+
       setTitle(""); setBrief("");
       load();
     } catch (e) {
@@ -138,12 +162,17 @@ export default function LandingPagesPage() {
               className="mt-1 w-full rounded border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:border-accent focus:outline-none" />
           </div>
         </div>
-        <div className="mt-4 flex items-center gap-3">
-          <button type="submit" disabled={saving || atQuota || !title.trim()}
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={saving || hardCapReached || !title.trim()}
             className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
-            {saving ? "Requesting…" : "Generate page"}
+            {saving ? "Requesting…" : overageActive ? `Generate page (~${overageCredits} credits)` : "Generate page"}
           </button>
-          {atQuota && (
+          {overageActive && (
+            <span className="text-sm text-slate-500">
+              You&apos;ve used your {quota?.limit} included page{quota?.limit === 1 ? "" : "s"} — extra pages cost ~{overageCredits} credits each.
+            </span>
+          )}
+          {hardCapReached && (
             <span className="text-sm text-slate-500">
               You&apos;ve used all {quota?.limit} page{quota?.limit === 1 ? "" : "s"} on the {quota?.accountType} plan — delete one or upgrade to add more.
             </span>

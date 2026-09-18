@@ -540,6 +540,9 @@ model platform_settings {
   // higher-resolution clips cost more, so it is shown as "from ~N credits".
   credit_cost_video            Int      @default(6)
   credit_cost_image            Int      @default(7)
+  // Landing pages: each plan includes a free page quota; EXTRA pages beyond that
+  // cost this many credits (0 = keep the included quota as a hard cap, no overage).
+  credit_cost_landing          Int      @default(3)
   updated_at                  DateTime @default(now()) @db.Timestamptz(6)
 }
 

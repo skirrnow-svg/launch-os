@@ -14,14 +14,16 @@
  */
 import { prisma } from "@/lib/db";
 
-export type ActionKind = "video" | "image";
+export type ActionKind = "video" | "image" | "landing";
 
 /**
  * Code defaults. `video` is the BASE (minimum) cost — the cheapest clip (short,
  * 480p). Longer or higher-resolution clips cost more, so it is presented as
- * "from ~N credits". `image` is a flat per-image cost.
+ * "from ~N credits". `image` is a flat per-image cost. `landing` is the OVERAGE
+ * cost of an EXTRA landing page beyond a plan's included free quota (0 = no
+ * overage; the included quota stays a hard cap).
  */
-export const DEFAULT_ACTION_COSTS: Record<ActionKind, number> = { video: 6, image: 7 };
+export const DEFAULT_ACTION_COSTS: Record<ActionKind, number> = { video: 6, image: 7, landing: 3 };
 
 /** What drives a video above its base cost — shown to explain the range. */
 export const VIDEO_COST_FACTORS = "clip length, resolution and quality";
@@ -29,7 +31,6 @@ export const VIDEO_COST_FACTORS = "clip length, resolution and quality";
 /** Free actions (informational, for the admin UI). Never burn media credits. */
 export const FREE_ACTIONS = [
   { key: "text", label: "Ad copy / text", note: "Claude subscription — 0 credits (metered by plan token allowance)" },
-  { key: "landing", label: "Landing / web page", note: "Self-contained HTML — 0 credits (metered by plan page quota)" },
 ] as const;
 
 /** Admin-configured per-action costs (falls back to defaults). */
@@ -39,6 +40,7 @@ export async function getActionCosts(): Promise<Record<ActionKind, number>> {
     return {
       video: s?.credit_cost_video ?? DEFAULT_ACTION_COSTS.video,
       image: s?.credit_cost_image ?? DEFAULT_ACTION_COSTS.image,
+      landing: s?.credit_cost_landing ?? DEFAULT_ACTION_COSTS.landing,
     };
   } catch {
     return { ...DEFAULT_ACTION_COSTS };
