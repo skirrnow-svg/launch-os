@@ -2,11 +2,18 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { PROMPT_BUILDER_OPTIONS as OPT, FRAMING_COUNT } from "./promptBuilderOptions";
+import {
+  PROMPT_BUILDER_OPTIONS as OPT,
+  FRAMING_COUNT,
+  framingScope,
+  actionScope,
+  actionAllowedInScope,
+  compatibleLenses,
+  MACRO_LENS,
+} from "./promptBuilderOptions";
 import {
   compileVideoPrompts,
   CAMERA_BODIES,
-  LENS_PROFILES,
   COLOR_SCIENCES,
   type ProVideoPromptState,
   type CameraBody,
@@ -242,6 +249,25 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     setMaterials(p.materials);
   }
 
+  // Current framing's scale scope drives which actions/lenses are valid.
+  const curFramingScope = framingScope(framing[0]);
+  const allowedActions = OPT.actionsAndMechanics.filter((a) => actionAllowedInScope(a, curFramingScope));
+  const allowedLenses = compatibleLenses(curFramingScope);
+  const lensLocked = curFramingScope === "macro";
+
+  // Keep lens + action coherent with the chosen framing scale — this is what
+  // prevents the macro/full "scale hallucination". Used wherever framing is set.
+  function changeFraming(next: string[]) {
+    setFraming(next);
+    const scope = framingScope(next[0]);
+    if (scope === "macro") {
+      if (lensProfile && lensProfile !== MACRO_LENS) setLensProfile(MACRO_LENS);
+      if (action && actionScope(action) === "full") setAction(""); // drop a now-invalid full-body action
+    } else if (scope === "full" && lensProfile === MACRO_LENS) {
+      setLensProfile(""); // back to Auto (a full-scope lens)
+    }
+  }
+
   // Assemble the pro state and compile to a positive/negative pair.
   const { positivePrompt, negativePrompt } = useMemo(() => {
     const state: ProVideoPromptState = {
@@ -473,15 +499,20 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                     onChange={(e) => {
                       if (e.target.value) setAction(e.target.value);
                     }}
-                    className={`${inputCls} mb-2`}
+                    className={`${inputCls} mb-1`}
                   >
                     <option value="">Choose a common action…</option>
-                    {OPT.actionsAndMechanics.map((a) => (
+                    {allowedActions.map((a) => (
                       <option key={a} value={a}>
                         {a.length > 70 ? `${a.slice(0, 70)}…` : a}
                       </option>
                     ))}
                   </select>
+                  {lensLocked && (
+                    <p className="mb-2 text-[11px] text-slate-400">
+                      Full-body actions (mounting, running) are hidden — the selected close-up style only works with fine-detail motion.
+                    </p>
+                  )}
                   <textarea
                     value={action}
                     onChange={(e) => setAction(e.target.value)}
@@ -535,9 +566,14 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                     </Field>
                     <Field label="Lens profile">
                       <select value={lensProfile} onChange={(e) => setLensProfile(e.target.value as LensProfile | "")} className={inputCls}>
-                        <option value="">Auto (Anamorphic 35mm Prime)</option>
-                        {LENS_PROFILES.map((l) => (<option key={l} value={l}>{l}</option>))}
+                        <option value="">Auto ({lensLocked ? MACRO_LENS : "Anamorphic 35mm Prime"})</option>
+                        {allowedLenses.map((l) => (<option key={l} value={l}>{l}</option>))}
                       </select>
+                      {lensLocked && (
+                        <span className="mt-1 inline-block rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                          Macro framing requires macro telephoto optics
+                        </span>
+                      )}
                     </Field>
                     <Field label="Colour science">
                       <select value={colorScience} onChange={(e) => setColorScience(e.target.value as ColorScience | "")} className={inputCls}>
@@ -551,7 +587,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                 {/* Full multi-select chip controls */}
                 <div className="mt-4 grid gap-5">
                   <ChipGroup label="Actor & wardrobe" hint="pick 1–2" options={OPT.actorsAndWardrobe} selected={actors} onChange={setActors} max={2} />
-                  <ChipGroup label="Camera framing" hint="pick 1" options={FRAMINGS} selected={framing} onChange={setFraming} max={1} />
+                  <ChipGroup label="Camera framing" hint="pick 1" options={FRAMINGS} selected={framing} onChange={changeFraming} max={1} />
                   <ChipGroup label="Camera movement" hint="up to 2" options={MOVEMENTS} selected={movements} onChange={setMovements} max={2} />
                   <ChipGroup label="Environment" hint="up to 3" options={OPT.environments} selected={environments} onChange={setEnvironments} max={3} />
                   <ChipGroup label="Lighting & atmosphere" hint="up to 2" options={OPT.lightingAndAtmosphere} selected={lighting} onChange={setLighting} max={2} />

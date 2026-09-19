@@ -6,7 +6,13 @@
  * lens), directional lighting geometry, temporal shutter rules, colour science,
  * and rigid-body physics enforcement. The negative prompt is DYNAMIC — it grows
  * with the guardrails that are enabled.
+ *
+ * Scale safety: before assembling, framing/action/lens are run through
+ * resolveScaleConflicts so a macro framing can never be paired with a full-body
+ * action or a wide/anamorphic lens (the cause of scale-hallucination artifacts).
  */
+import { FRAMING_SCOPE, resolveScaleConflicts } from "./promptBuilderOptions";
+
 export interface ProVideoPromptState {
   heroSubject: string;
   actors: string[];
@@ -33,8 +39,17 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
   const parts: string[] = [];
 
   const cameraRig = state.cinemaKit?.cameraBody || "ARRI Alexa Mini LF";
-  const lens = state.cinemaKit?.lensProfile || "Anamorphic 35mm Prime";
-  const framing = state.camera.length ? state.camera.join(", ") : "Cinematic commercial tracking shot";
+
+  // Split camera into framings vs movements, then resolve any scale/optical
+  // conflict (macro framing + full-body action, or a mismatched lens).
+  const framings = state.camera.filter((c) => c in FRAMING_SCOPE);
+  const movements = state.camera.filter((c) => !(c in FRAMING_SCOPE));
+  const effectiveLens = state.cinemaKit?.lensProfile || "Anamorphic 35mm Prime";
+  const resolved = resolveScaleConflicts({ framings, action: state.action, lens: effectiveLens });
+  const lens = resolved.lens;
+
+  const cameraTerms = [...resolved.framings, ...movements].filter(Boolean);
+  const framing = cameraTerms.length ? cameraTerms.join(", ") : "Cinematic commercial tracking shot";
   parts.push(`Captured on ${cameraRig} with ${lens}, ${framing} focused on ${state.heroSubject || "the hero subject"}`);
 
   if (state.actors.length) parts.push(`featuring ${state.actors.join(" and ")}`);
@@ -79,6 +94,7 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     state.guardrails.suppressText ? "text, typography, letters, brand labels, misspelled words, floating logos, watermark, badges, UI elements" : null,
     state.guardrails.lockAnatomy ? "morphing limbs, extra legs, duplicate feet, backward-facing anatomy, snapping joints, mutated hands, extra fingers" : null,
     state.guardrails.enforcePhysics ? "martial arts high kick, floating vehicle, zero suspension compression, clipping through metal, rubbery physics, defying gravity, melting surfaces" : null,
+    "sudden scale shifts, subject-scale hallucination, feet morphing into vehicle parts, uncontrolled zoom, inconsistent subject size, lens breathing",
     "erratic motion blur, frame interpolation artifacts, stutter, low bitrate, blurry textures, AI plastic skin"
   ].filter(Boolean).join(", ");
 

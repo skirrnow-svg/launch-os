@@ -90,8 +90,9 @@ export const PROMPT_BUILDER_OPTIONS = {
   ],
 
   cameraFramingAndMovement: [
-    // Framing
+    // Framing (keep grouped ahead of movement — see FRAMING_COUNT).
     "Macro close-up with shallow depth of field",
+    "Extreme tight detail shot",
     "Low-angle three-quarter tracking shot",
     "Eye-level medium commercial hero shot",
     "Clean top-down 90-degree overhead flat-lay",
@@ -140,4 +141,130 @@ export const PROMPT_BUILDER_OPTIONS = {
 } as const;
 
 /** How many leading entries of `cameraFramingAndMovement` are FRAMING options. */
-export const FRAMING_COUNT = 6;
+export const FRAMING_COUNT = 7;
+
+/* ------------------------------------------------------------------ *
+ * Scale / optical constraint model
+ * ------------------------------------------------------------------ *
+ * Prevents the "scale hallucination" failure where a tight macro framing is
+ * paired with a full-body action (mounting a bike, a running stride) or an
+ * incompatible lens, causing the engine to morph feet into vehicle parts and
+ * zoom wildly. Framings and actions carry a scale scope; lenses are matched to
+ * that scope. This is the single source of truth shared by the UI (filtering /
+ * auto-switching) and the compiler (final sanitisation).
+ */
+export type ScaleScope = "macro" | "full";
+export type ActionScope = ScaleScope | "any";
+
+/** Each FRAMING's scale tier. Movements are scope-agnostic (absent here). */
+export const FRAMING_SCOPE: Record<string, ScaleScope> = {
+  "Macro close-up with shallow depth of field": "macro",
+  "Extreme tight detail shot": "macro",
+  "Clean top-down 90-degree overhead flat-lay": "macro",
+  "Low-angle three-quarter tracking shot": "full",
+  "Eye-level medium commercial hero shot": "full",
+  "Wide cinematic environmental establishing shot": "full",
+  "Dynamic over-the-shoulder user perspective": "full",
+};
+
+/** Convenience tiers (derived from FRAMING_SCOPE). */
+export const MACRO_TIER = Object.keys(FRAMING_SCOPE).filter((f) => FRAMING_SCOPE[f] === "macro");
+export const FULL_TIER = Object.keys(FRAMING_SCOPE).filter((f) => FRAMING_SCOPE[f] === "full");
+
+/**
+ * Each ACTION's scale tier. "full" = needs body/vehicle in frame (invalid at
+ * macro scale); "macro" = an isolated fine-detail gesture; "any" = reads at
+ * either scale.
+ */
+export const ACTION_SCOPE: Record<string, ActionScope> = {
+  "Mounting smoothly with bent knee in low arc, rear suspension visibly compressing under body weight, side stand retracting": "full",
+  "Stepping firmly onto motorcycle footpeg with authentic weight transfer and sole traction": "full",
+  "Twisting motorcycle throttle with subtle rear chassis squat and chain tension": "full",
+  "Heavy boot tread impacting wet gravel, displacing fine loose aggregate naturally": "any",
+  "Athletic running stride with natural forefoot impact and dynamic sole flex": "full",
+  "Sharp pivot turn on slick concrete with realistic grip and zero foot slip": "full",
+  "Tapping responsive glass display with realistic micro-vibration and fluid UI feedback": "macro",
+  "Typing on mechanical keycaps with crisp downward actuation and clean bounce": "macro",
+  "Unfolding a foldable display with smooth, calibrated continuous hinge resistance": "macro",
+  "Snapping device magnetically into aluminum charging stand with a solid click": "macro",
+  "Pouring boiling water in a steady laminar stream with rising hot steam plumes": "any",
+  "Cold condensation beads rolling smoothly down chilled frosted glass": "macro",
+  "Pulling espresso with thick golden crema swirling into a warm ceramic cup": "any",
+  "Navigating interactive data charts with precise cursor clicks and smooth viewport pans": "any",
+  "Expanding application panels with instant 60fps frame transitions and zero latency": "any",
+};
+
+// Lens profiles matched to scope (plain strings mirroring promptCompiler's
+// LENS_PROFILES — kept here to avoid a circular import).
+export const MACRO_LENS = "90mm Macro Cine Prime";
+export const FULL_LENSES = ["Anamorphic 35mm Prime", "Cooke S4/i 50mm Prime"];
+export const MACRO_LENSES = [MACRO_LENS];
+/** Fallback framing when a macro/full conflict has to be resolved. */
+export const DEFAULT_FULL_FRAMING = "Low-angle three-quarter tracking shot";
+
+/** Scope of a framing string, or null if it isn't a known framing. */
+export function framingScope(framing?: string | null): ScaleScope | null {
+  if (!framing) return null;
+  return FRAMING_SCOPE[framing] ?? null;
+}
+
+/** Scope of an action string; unknown / free-text actions read as "any". */
+export function actionScope(action?: string | null): ActionScope {
+  if (!action) return "any";
+  return ACTION_SCOPE[action] ?? "any";
+}
+
+/** Lenses compatible with a framing scope (all three when scope is unknown). */
+export function compatibleLenses(scope: ScaleScope | null): string[] {
+  if (scope === "macro") return [...MACRO_LENSES];
+  if (scope === "full") return [...FULL_LENSES];
+  return [...MACRO_LENSES, ...FULL_LENSES];
+}
+
+/**
+ * Whether an action may be offered under the given framing scope. Macro framing
+ * hides full-body actions; every other scope allows all (full-body prioritised
+ * but micro still permitted).
+ */
+export function actionAllowedInScope(action: string, scope: ScaleScope | null): boolean {
+  if (scope !== "macro") return true;
+  return actionScope(action) !== "full";
+}
+
+/**
+ * Resolve scale/optical conflicts to a coherent set. Used by the compiler as
+ * the final safety net (and mirrors what the UI does live):
+ *   • a full-body action under a macro framing → the macro framing is swapped
+ *     for DEFAULT_FULL_FRAMING;
+ *   • the effective lens is coerced to the framing scope (macro ⇒ macro prime;
+ *     full ⇒ never the macro prime — e.g. no Anamorphic 35mm on a macro shot).
+ */
+export function resolveScaleConflicts(input: { framings: string[]; action?: string | null; lens: string }): {
+  framings: string[];
+  lens: string;
+  changed: boolean;
+} {
+  let framings = [...input.framings];
+  let lens = input.lens;
+  let changed = false;
+
+  // 1) Full-body action cannot live under a macro framing.
+  if (actionScope(input.action) === "full" && framings.some((f) => framingScope(f) === "macro")) {
+    framings = framings.filter((f) => framingScope(f) !== "macro");
+    if (!framings.some((f) => framingScope(f) === "full")) framings = [DEFAULT_FULL_FRAMING, ...framings];
+    changed = true;
+  }
+
+  // 2) Effective scope (full wins over macro if both somehow present).
+  const scope: ScaleScope | null = framings.some((f) => framingScope(f) === "full")
+    ? "full"
+    : framings.some((f) => framingScope(f) === "macro")
+      ? "macro"
+      : null;
+
+  // 3) Coerce the lens to the scope.
+  if (scope === "macro" && !MACRO_LENSES.includes(lens)) { lens = MACRO_LENS; changed = true; }
+  if (scope === "full" && MACRO_LENSES.includes(lens)) { lens = FULL_LENSES[0]; changed = true; }
+
+  return { framings, lens, changed };
+}
