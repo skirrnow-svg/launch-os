@@ -24,46 +24,51 @@ CFG="$HOME/.config/higgsfield/config.json"
 REPO="skirrnow-svg/launch-os"
 LOG="$HOME/.config/higgsfield/secret-sync.log"
 ALERT_FLAG="$HOME/.config/higgsfield/.auth-alerted"
-# Email settings (git-ignored): NOTIFY_SMTP_USER, NOTIFY_SMTP_PASS (Gmail App
-# Password), NOTIFY_TO (comma/semicolon-separated recipients).
+# Alert email flows through Resend (transactional API) — the app's own email
+# transport, already domain-verified. The API key is read from the app's
+# .env.local (source of truth); recipients + optional From come from notify.env:
+#   NOTIFY_TO   = comma/semicolon-separated recipients (required to send)
+#   NOTIFY_FROM = optional override (default: a verified skirrnow.com sender)
 NOTIFY_ENV="$HOME/.config/higgsfield/notify.env"
 [ -f "$NOTIFY_ENV" ] && . "$NOTIFY_ENV"
+RESEND_API_KEY="$(grep -m1 '^RESEND_API_KEY=' "$PROJECT/.env.local" 2>/dev/null | cut -d= -f2- | sed 's/^["'\'']//;s/["'\'']$//')"
+RESEND_FROM="${NOTIFY_FROM:-SkirrNow Alerts <skirrnow.agent@skirrnow.com>}"
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
 # Email all recipients that one or more providers need re-auth. $1 = which,
 # e.g. "Higgsfield", "Claude", or "Higgsfield and Claude".
 email_alert() {
-  [ -n "${NOTIFY_SMTP_USER:-}" ] && [ -n "${NOTIFY_SMTP_PASS:-}" ] && [ -n "${NOTIFY_TO:-}" ] || return 0
-  local which="$1" subject list rcpt_args rcpts_hdr body tmp rc
-  subject="$(date +%F) - MOST Important - SkirrNow needs Auth: ${which}"
-  list="${NOTIFY_TO//;/ }"; list="${list//,/ }"
-  rcpt_args=""; for r in $list; do rcpt_args="$rcpt_args --mail-rcpt $r"; done
-  rcpts_hdr="$(echo $list | sed 's/ /, /g')"
-  body="SkirrNow's generation runner can't authenticate to: ${which}.
-Affected generation is PAUSED until you re-authenticate (jobs are held, not lost).
-
-ACTION REQUIRED (on the SkirrNow host machine):
-  - Higgsfield:  run  higgsfield auth login   (browser sign-in; ~weekly)
-  - Claude:      run  claude setup-token      (browser; ~yearly) then tell your operator to update the secret
-
-Only the provider(s) named in the subject need attention. Higgsfield re-syncs
-automatically within 12h once you log in.
-
-Detected at: $(ts)
--- SkirrNow Ops (automated)"
-  tmp="$(mktemp)"
-  {
-    printf 'From: SkirrNow Alerts <%s>\r\n' "$NOTIFY_SMTP_USER"
-    printf 'To: %s\r\n' "$rcpts_hdr"
-    printf 'Subject: %s\r\n' "$subject"
-    printf 'Content-Type: text/plain; charset=UTF-8\r\n\r\n'
-    printf '%s\r\n' "$body"
-  } > "$tmp"
-  curl -fsS --ssl-reqd "smtp://smtp.gmail.com:587" \
-    --mail-from "$NOTIFY_SMTP_USER" $rcpt_args \
-    --user "$NOTIFY_SMTP_USER:$NOTIFY_SMTP_PASS" \
-    --upload-file "$tmp" >/dev/null 2>&1
-  rc=$?; rm -f "$tmp"; return $rc
+  [ -n "${RESEND_API_KEY:-}" ] && [ -n "${NOTIFY_TO:-}" ] || {
+    echo "$(ts) WARN: alert skipped — RESEND_API_KEY or NOTIFY_TO not set" | tee -a "$LOG" >&2
+    return 0
+  }
+  RESEND_API_KEY="$RESEND_API_KEY" RESEND_FROM="$RESEND_FROM" NOTIFY_TO="$NOTIFY_TO" \
+  ALERT_WHICH="$1" ALERT_TS="$(ts)" node -e '
+    const key = process.env.RESEND_API_KEY, from = process.env.RESEND_FROM;
+    const to = process.env.NOTIFY_TO.split(/[;,]/).map((s) => s.trim()).filter(Boolean);
+    const which = process.env.ALERT_WHICH, when = process.env.ALERT_TS;
+    const action = /Higgsfield/.test(which) ? "higgsfield auth login"
+      : /Claude/.test(which) ? "claude setup-token"
+      : "re-authenticate the affected provider";
+    const subject = new Date().toISOString().slice(0, 10) + " - MOST Important - SkirrNow needs Auth: " + which;
+    const html = `<div style="font-family:system-ui,Segoe UI,Arial,sans-serif;font-size:14px;color:#0f172a;line-height:1.55">
+      <h2 style="margin:0 0 8px">SkirrNow — ${which} authentication is down</h2>
+      <p>The generation runner cannot authenticate to <b>${which}</b>. Affected generation is <b>paused</b> — queued jobs are <b>held, not lost</b>.</p>
+      <p style="margin:14px 0 4px"><b>Action required</b> on the SkirrNow host machine:</p>
+      <pre style="background:#f1f5f9;padding:10px 12px;border-radius:8px;margin:0 0 10px;font-size:13px">${action}</pre>
+      <p style="color:#64748b">Only the provider named above needs attention. Once done, the runner re-syncs automatically within 12h.</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:14px">Detected ${when} · SkirrNow Ops (automated, via Resend)</p>
+    </div>`;
+    fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
+      body: JSON.stringify({ from, to, subject, html }),
+    }).then(async (r) => {
+      if (!r.ok) { console.error("resend " + r.status + " " + (await r.text()).slice(0, 200)); process.exit(1); }
+      process.exit(0);
+    }).catch((e) => { console.error(String(e)); process.exit(1); });
+  '
+  return $?
 }
 
 # Email at most once per outage / per 24h.
