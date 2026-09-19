@@ -13,6 +13,9 @@
 
 import { PrismaClient } from "@prisma/client";
 import { execFileSync } from "node:child_process";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 const prisma = new PrismaClient();
 const MAX_JOBS = Number(process.env.MAX_JOBS || 10); // bound a single run
@@ -44,6 +47,35 @@ function hf(args) {
 }
 function modelFor(type) {
   return type === "video" ? "seedance_2_0" : "gpt_image_2";
+}
+
+/**
+ * Build the Higgsfield CLI flags for a non-sample video from the builder's
+ * requested params (persisted in asset.metadata.requested). Materializes an
+ * i2v reference image to a temp file. Returns { model, args, imagePath }.
+ */
+function videoGenParams(req, imageDataUrl, assetId) {
+  const RES = ["480p", "720p", "1080p"];
+  const AR = ["16:9", "9:16", "1:1"];
+  const res = RES.includes(req.resolution) ? req.resolution : "720p";
+  const durN = Number(req.duration);
+  const dur = Number.isFinite(durN) ? Math.min(15, Math.max(4, Math.round(durN))) : 6;
+  const arReq = req.aspect_ratio || req.aspectRatio;
+  const ar = AR.includes(arReq) ? arReq : "16:9";
+  const mode = req.mode === "i2v" ? "i2v" : "t2v";
+  const model = typeof req.model === "string" && req.model ? req.model : "seedance_2_5";
+  const args = ["--resolution", res, "--duration", String(dur), "--aspect_ratio", ar, "--mode", mode];
+  let imagePath = null;
+  if (mode === "i2v" && typeof imageDataUrl === "string") {
+    const m = imageDataUrl.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
+    if (m) {
+      const ext = m[1] === "jpeg" ? "jpg" : m[1];
+      imagePath = join(tmpdir(), `ref-${assetId}.${ext}`);
+      writeFileSync(imagePath, Buffer.from(m[2], "base64"));
+      args.push("--image", imagePath);
+    }
+  }
+  return { model, args, imagePath };
 }
 function parseCredits(out) {
   const m = out.match(/([\d.]+)\s*credits?/i);
@@ -291,7 +323,20 @@ async function processAsset(asset) {
       ? ["--mode", "fast", "--resolution", "480p", "--duration", "4", "--generate-audio", "false"]
       : [];
 
-  const cost = parseCredits(hf(["generate", "cost", jst, "--prompt", prompt, ...draftArgs]));
+  // Non-sample video from the AI Video Prompt Builder: honor its requested
+  // Higgsfield params (model, resolution, duration, aspect_ratio, mode, image).
+  let effModel = jst;
+  let genArgs = draftArgs;
+  let refImagePath = null;
+  if (!isSample && asset.type === "video") {
+    const req = meta.requested && typeof meta.requested === "object" ? meta.requested : {};
+    const p = videoGenParams(req, meta.imageDataUrl, asset.id);
+    effModel = p.model;
+    genArgs = p.args;
+    refImagePath = p.imagePath;
+  }
+
+  const cost = parseCredits(hf(["generate", "cost", effModel, "--prompt", prompt, ...genArgs]));
 
   // Hard monthly Higgsfield quota across the whole shared pool.
   const globalUsed = await globalCreditsUsed();
@@ -323,7 +368,12 @@ async function processAsset(asset) {
     console.log(`[runner] video job ${asset.id} ~${cost} cr (human-confirmed at enqueue)`);
   }
 
-  const out = hf(["generate", "create", jst, "--prompt", prompt, ...draftArgs, "--wait", "--json"]);
+  let out;
+  try {
+    out = hf(["generate", "create", effModel, "--prompt", prompt, ...genArgs, "--wait", "--json"]);
+  } finally {
+    if (refImagePath) { try { unlinkSync(refImagePath); } catch { /* best-effort temp cleanup */ } }
+  }
   const url = extractMediaUrl(out);
   if (!url) throw new Error("Generation finished but no media URL returned.");
 
@@ -333,7 +383,7 @@ async function processAsset(asset) {
       url,
       storage_key: url, // TODO: mirror to Cloudflare R2, then store the R2 key
       status: "ready",
-      metadata: { ...meta, model: jst, creditsUsed: Number.isFinite(cost) ? cost : null },
+      metadata: { ...meta, model: effModel, creditsUsed: Number.isFinite(cost) ? cost : null },
     },
   });
   if (Number.isFinite(cost) && cost > 0) {
@@ -343,10 +393,10 @@ async function processAsset(asset) {
     });
   }
   await recordUsage(asset.org_id, {
-    provider: "higgsfield", kind: asset.type || "media", model: jst,
+    provider: "higgsfield", kind: asset.type || "media", model: effModel,
     credits: Number.isFinite(cost) ? cost : 0, refType: "asset", refId: asset.id,
   });
-  console.log(`[runner] ready ${asset.id} (${jst}, ~${cost} cr) → ${url}`);
+  console.log(`[runner] ready ${asset.id} (${effModel}, ~${cost} cr) → ${url}`);
 }
 
 // ---- Lead qualification (Phase 3 + 4) ---------------------------------------
