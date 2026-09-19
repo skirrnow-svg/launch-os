@@ -90,7 +90,9 @@ export function lockActionToFraming(
 /** Rule 3 — cap simultaneous physical events for the clip length. */
 export function capActionDensity(action: string, durationSeconds: number): { action: string; correction?: string } {
   if (!action) return { action };
-  const maxClauses = durationSeconds <= 4 ? 1 : durationSeconds <= 6 ? 2 : 3;
+  // Temporal density: <=6s enforces a single action (motion-clutter guard);
+  // 8-10s allows two sequential micro-actions; 12-15s allows three.
+  const maxClauses = durationSeconds <= 6 ? 1 : durationSeconds <= 10 ? 2 : 3;
   const clauses = action.split(/,|\band\b|\bwith\b/i).map((c) => c.trim()).filter(Boolean);
   if (clauses.length > maxClauses) {
     const kept = clauses.slice(0, maxClauses).join(maxClauses > 1 ? " with " : "");

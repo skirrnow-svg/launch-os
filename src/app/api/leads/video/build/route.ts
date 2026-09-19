@@ -73,8 +73,31 @@ export const POST = withErrors(async (request: Request) => {
     positive?: unknown;
     negative?: unknown;
     confirmed?: unknown;
+    resolution?: unknown;
+    duration?: unknown;
+    aspectRatio?: unknown;
+    mode?: unknown;
+    image?: unknown;
   };
   const positive = typeof body.positive === "string" ? body.positive.trim() : "";
+
+  // Higgsfield generation params (validated + clamped to native values).
+  const resolution = (["480p", "720p", "1080p"] as const).includes(body.resolution as never)
+    ? (body.resolution as "480p" | "720p" | "1080p")
+    : "720p";
+  const durNum = Number(body.duration);
+  const duration = Number.isFinite(durNum) ? Math.min(15, Math.max(4, Math.round(durNum))) : 6;
+  const aspectRatio = (["16:9", "9:16", "1:1"] as const).includes(body.aspectRatio as never)
+    ? (body.aspectRatio as "16:9" | "9:16" | "1:1")
+    : "16:9";
+  // A reference image switches to Image-to-Video. Accept only a small
+  // png/jpeg/webp data URL; anything invalid or oversized falls back to t2v.
+  const rawImage = typeof body.image === "string" ? body.image : "";
+  const validImage =
+    /^data:image\/(png|jpe?g|webp);base64,/.test(rawImage) && rawImage.length <= 2_800_000
+      ? rawImage
+      : "";
+  const mode: "t2v" | "i2v" = body.mode === "i2v" && validImage ? "i2v" : "t2v";
   // The builder now compiles a dynamic negative prompt; fall back to the fixed
   // baseline if the client did not send one.
   const negative =
@@ -125,7 +148,13 @@ export const POST = withErrors(async (request: Request) => {
       name: "AI Prompt Builder video",
       prompt: storedPrompt,
       status: "queued",
-      metadata: { source: "prompt-builder", negative },
+      metadata: {
+        source: "prompt-builder",
+        negative,
+        // Runner reads `requested` to emit the Higgsfield CLI flags.
+        requested: { model: "seedance_2_5", resolution, duration, aspectRatio, mode },
+        ...(mode === "i2v" ? { imageDataUrl: validImage } : {}),
+      },
     },
   });
 

@@ -219,8 +219,14 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
   const [environments, setEnvironments] = useState<string[]>([]); // up to 3
   const [lighting, setLighting] = useState<string[]>([]); // up to 2
   const [materials, setMaterials] = useState<string[]>([]); // up to 4
-  const [duration, setDuration] = useState(4); // clip length (s) — drives the linter's action budget
+  const [duration, setDuration] = useState(6); // clip length (s) 4-15 — drives the linter's action budget
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [resolution, setResolution] = useState<"480p" | "720p" | "1080p">("720p"); // Higgsfield native
+
+  // Image reference (Advanced) → Image-to-Video mode when present.
+  const [imageRef, setImageRef] = useState<{ name: string; dataUrl: string } | null>(null);
+  const [imageError, setImageError] = useState("");
+  const mode: "t2v" | "i2v" = imageRef ? "i2v" : "t2v";
 
   // Cinema kit — optical/colour profiles ("" = Auto → compiler default).
   const [cameraBody, setCameraBody] = useState<CameraBody | "">("");
@@ -285,6 +291,8 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       materials,
       durationSeconds: duration,
       aspectRatio,
+      resolution,
+      mode,
       cinemaKit: {
         cameraBody: cameraBody || undefined,
         lensProfile: lensProfile || undefined,
@@ -294,7 +302,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     };
     return compileVideoPrompts(state);
   }, [
-    hero, actors, action, framing, movements, environments, lighting, materials, duration, aspectRatio,
+    hero, actors, action, framing, movements, environments, lighting, materials, duration, aspectRatio, resolution, mode,
     cameraBody, lensProfile, colorScience,
     enforcePhysics, suppressText, lockAnatomy, rigidCollisions, lockShutterSpeed,
   ]);
@@ -321,13 +329,42 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     }
   }
 
+  // Reference image (Image-to-Video). Read client-side as a data URL for the
+  // thumbnail preview and to ship in the build payload; the runner materializes
+  // it to a temp file for `--image`. Capped so it fits the request/metadata.
+  const IMG_MAX_BYTES = 2_000_000; // ~2 MB original
+  function handleImageFile(file: File | null | undefined) {
+    setImageError("");
+    if (!file) return;
+    if (!/^image\/(png|jpe?g|webp)$/.test(file.type)) {
+      setImageError("Use a .png, .jpg, or .webp image.");
+      return;
+    }
+    if (file.size > IMG_MAX_BYTES) {
+      setImageError("Image is too large — keep it under 2 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setImageRef({ name: file.name, dataUrl: String(reader.result) });
+    reader.onerror = () => setImageError("Could not read that image.");
+    reader.readAsDataURL(file);
+  }
+
   async function generate() {
     if (!isPaid) return;
     setError("");
     setNotice("");
     setBusy(true);
     try {
-      const payload = { positive: positivePrompt, negative: negativePrompt };
+      const payload = {
+        positive: positivePrompt,
+        negative: negativePrompt,
+        resolution,
+        duration,
+        aspectRatio,
+        mode,
+        ...(mode === "i2v" && imageRef ? { image: imageRef.dataUrl } : {}),
+      };
       const pre = await fetch("/api/leads/video/build", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -342,7 +379,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       if (est.status !== "confirmation-required") throw new Error("Unexpected response.");
 
       const ok = window.confirm(
-        `Generate this HD commercial render now?\n\n~${est.estimatedCredits} credits — the base rate for a short clip; longer or higher-resolution renders cost more.\nIt renders in the background and appears in your Video Studio project.`,
+        `Generate this ${resolution} ${mode === "i2v" ? "image-to-video" : "commercial"} render now? (${duration}s · ${aspectRatio})\n\n~${est.estimatedCredits} credits — the base rate; longer clips and higher resolution cost more.\nIt renders in the background and appears in your Video Studio project.`,
       );
       if (!ok) return;
 
@@ -533,30 +570,66 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                     placeholder="Or describe it in your own words — e.g. the boots step onto the footpeg and the bike settles under the weight"
                     className={`${inputCls} resize-y`}
                   />
+                  {duration >= 8 && (
+                    <p className="mt-1 text-[11px] text-emerald-700">
+                      Longer durations (8s–15s) support sequential micro-actions without stalling.
+                    </p>
+                  )}
                 </Field>
               </div>
             </div>
-            <div className="mt-4">
-              <span className="text-xs font-semibold text-slate-600">Clip length</span>
-              <div className="mt-1 flex gap-2">
-                {[4, 6].map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() => setDuration(s)}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                      duration === s
-                        ? "border-indigo-600 bg-indigo-600 text-white"
-                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
-                    }`}
-                  >
-                    {s} seconds
-                  </button>
-                ))}
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div>
+                <span className="text-xs font-semibold text-slate-600">Clip length</span>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {[4, 5, 6, 8, 10, 12, 15].map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setDuration(s)}
+                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                        duration === s
+                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+                      }`}
+                    >
+                      {s}s
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {duration <= 6
+                    ? `We keep ${duration}s to a single clean action so the motion never stutters.`
+                    : `At ${duration}s we allow a short sequence of micro-actions without stalling.`}
+                </p>
               </div>
-              <p className="mt-1 text-[11px] text-slate-400">
-                We automatically limit how many actions pack into {duration} seconds so the motion stays clean.
-              </p>
+
+              <div>
+                <span className="text-xs font-semibold text-slate-600">Resolution</span>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  {(["480p", "720p", "1080p"] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setResolution(r)}
+                      className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        resolution === r
+                          ? "border-indigo-600 bg-indigo-600 text-white"
+                          : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+                      }`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">
+                  {resolution === "1080p"
+                    ? "Full HD — richest detail; costs more credits than 720p/480p."
+                    : resolution === "480p"
+                      ? "Draft quality — the cheapest, fastest render."
+                      : "Balanced default — crisp HD at a moderate credit cost."}
+                </p>
+              </div>
             </div>
 
             <div className="mt-4">
@@ -614,6 +687,57 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
 
             {canAdvanced && advanced && (
               <div className="border-t border-slate-100 p-4">
+                {/* Image reference (Image-to-Video) */}
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs font-semibold text-slate-600">Image reference (optional)</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${mode === "i2v" ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500"}`}>
+                      {mode === "i2v" ? "Image-to-Video" : "Text-to-Video"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    Drop a still and we animate <em>it</em> — preserving its exact geometry, textures and colour, then driving
+                    camera motion and physics over it.
+                  </p>
+
+                  {imageRef ? (
+                    <div className="mt-2 flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageRef.dataUrl}
+                        alt="Reference preview"
+                        className="h-16 w-16 rounded-md border border-slate-300 object-cover"
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate text-xs font-medium text-slate-700">{imageRef.name}</div>
+                        <button
+                          type="button"
+                          onClick={() => { setImageRef(null); setImageError(""); }}
+                          className="mt-1 text-[11px] font-semibold text-rose-600 hover:underline"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => { e.preventDefault(); handleImageFile(e.dataTransfer.files?.[0]); }}
+                      className="mt-2 flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-5 text-center hover:border-indigo-400"
+                    >
+                      <span className="text-xs font-semibold text-slate-600">Drag &amp; drop an image, or click to browse</span>
+                      <span className="mt-0.5 text-[11px] text-slate-400">PNG, JPG or WEBP · up to 2 MB</span>
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={(e) => handleImageFile(e.target.files?.[0])}
+                      />
+                    </label>
+                  )}
+                  {imageError && <p className="mt-1 text-[11px] text-rose-600">{imageError}</p>}
+                </div>
+
                 {/* Cinema kit */}
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <span className="text-xs font-semibold text-slate-600">Cinema kit — optical &amp; colour profile</span>

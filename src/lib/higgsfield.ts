@@ -34,6 +34,25 @@ export interface GenerateParams {
   model?: string;
   /** Must be true to actually spend — set only after human confirmation. */
   confirmed?: boolean;
+  /** Higgsfield native video params (aligned to `higgsfield generate create`). */
+  resolution?: "480p" | "720p" | "1080p";
+  duration?: number; // seconds, 4-15
+  aspectRatio?: "16:9" | "9:16" | "1:1";
+  mode?: "t2v" | "i2v";
+  /** Reference image path for Image-to-Video (mode "i2v"). */
+  imagePath?: string;
+}
+
+/** Build the native CLI flags for a video job (empty for images). */
+function videoFlags(p: GenerateParams): string[] {
+  if (p.kind !== "video") return [];
+  const flags: string[] = [];
+  if (p.resolution) flags.push("--resolution", p.resolution);
+  if (p.duration) flags.push("--duration", String(Math.min(15, Math.max(4, Math.round(p.duration)))));
+  if (p.aspectRatio) flags.push("--aspect_ratio", p.aspectRatio);
+  if (p.mode) flags.push("--mode", p.mode);
+  if (p.mode === "i2v" && p.imagePath) flags.push("--image", p.imagePath);
+  return flags;
 }
 
 /** Hard ceiling for anything that may run without a human in the loop. */
@@ -98,6 +117,7 @@ export interface GenerateResult {
  */
 export async function generate(params: GenerateParams): Promise<GenerateResult> {
   const jst = modelFor(params.kind, params.model);
+  const flags = videoFlags(params);
   const cost = await estimateCost(params.kind, params.prompt, params.model);
 
   // Owner rule: confirm before ANY spend; video / >25-credit never autonomous.
@@ -124,6 +144,7 @@ export async function generate(params: GenerateParams): Promise<GenerateResult> 
     jst,
     "--prompt",
     params.prompt,
+    ...flags,
     "--wait",
     "--json",
   ]);

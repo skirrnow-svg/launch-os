@@ -22,8 +22,10 @@ export interface ProVideoPromptState {
   environments: string[];
   lighting: string[];
   materials: string[];
-  durationSeconds?: number; // clip length; drives the linter's action-density cap
+  durationSeconds?: number; // clip length (4-15s); drives the linter's action-density cap
   aspectRatio?: "16:9" | "9:16" | "1:1"; // compositional framing guardrail
+  resolution?: "480p" | "720p" | "1080p"; // Higgsfield native resolution
+  mode?: "t2v" | "i2v"; // i2v = a reference image is supplied (Image-to-Video)
   cinemaKit?: {
     cameraBody?: "ARRI Alexa Mini LF" | "RED V-Raptor 8K" | "Sony FX9" | "35mm Cine Camera";
     lensProfile?: "Anamorphic 35mm Prime" | "Cooke S4/i 50mm Prime" | "90mm Macro Cine Prime";
@@ -63,21 +65,44 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     rigidCollisions: state.guardrails.rigidCollisions ?? true,
   });
   const lens = lint.lens;
+  const i2v = state.mode === "i2v";
+
+  // IMAGE-TO-VIDEO: the reference frame already carries the subject's geometry,
+  // textures, silhouette and static colour — so we drop static surface/aesthetic
+  // description and spend the token budget on MOTION: camera vector, mechanical
+  // contact physics, and dynamic lighting shifts across the existing geometry.
+  if (i2v) {
+    parts.push(
+      "Image-to-Video dynamic motion: Preserving exact visual geometry, textures, and silhouette from reference frame",
+    );
+  }
 
   const cameraTerms = [...framings, ...movements].filter(Boolean);
   const framing = cameraTerms.length ? cameraTerms.join(", ") : "Cinematic commercial tracking shot";
-  parts.push(`Captured on ${cameraRig} with ${lens}, ${framing} focused on ${state.heroSubject || "the hero subject"}`);
-
-  if (lint.actors.length) parts.push(`featuring ${lint.actors.join(" and ")}`);
+  if (i2v) {
+    // Camera vector only — no static "focused on <subject>" re-description.
+    const vector = movements.length ? movements.join(", ") : "slow controlled push-in dolly";
+    parts.push(`Camera vector: ${vector} on ${cameraRig} with ${lens}`);
+  } else {
+    parts.push(`Captured on ${cameraRig} with ${lens}, ${framing} focused on ${state.heroSubject || "the hero subject"}`);
+    if (lint.actors.length) parts.push(`featuring ${lint.actors.join(" and ")}`);
+  }
 
   const envLight: string[] = [];
-  if (state.environments.length) envLight.push(`set in ${state.environments.join(", ")}`);
-  if (state.lighting.length) envLight.push(`directional lighting via ${state.lighting.join(" and ")}`);
+  if (!i2v && state.environments.length) envLight.push(`set in ${state.environments.join(", ")}`);
+  if (state.lighting.length) {
+    envLight.push(
+      i2v
+        ? `dynamic lighting shifts across the existing geometry via ${state.lighting.join(" and ")}`
+        : `directional lighting via ${state.lighting.join(" and ")}`,
+    );
+  }
   if (envLight.length) parts.push(envLight.join(", "));
 
   if (lint.action) parts.push(`Action: ${lint.action}`);
 
-  if (lint.materials.length) {
+  // Static surface/material detail — dropped in i2v (the reference supplies it).
+  if (!i2v && lint.materials.length) {
     parts.push(`Tactile surface details highlighting ${lint.materials.join(", ")} with sharp edge separation and specular highlights`);
   }
 
@@ -101,11 +126,16 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     parts.push("wide 16:9 widescreen composition with balanced horizontal negative space");
   }
 
+  // Native resolution — inject a clarity cue only at 1080p (480p/720p unchanged).
+  if (state.resolution === "1080p") {
+    parts.push("mastered in crisp 1080p full high-definition clarity");
+  }
+
   const colorProfile = state.cinemaKit?.colorScience || "graded commercial film LUT";
   const shutterSpeed = (state.guardrails.lockShutterSpeed ?? true)
     ? "24fps, strict 180-degree shutter angle, zero digital motion blur"
     : "24fps, real-time 1.0x velocity";
-  parts.push(`${shutterSpeed}, ${colorProfile}, ${duration}-second clip`);
+  parts.push(`${shutterSpeed}, ${colorProfile}, ${duration}-second continuous clip`);
 
   if (state.guardrails.suppressText) {
     parts.push("100% clean broadcast footage, zero on-screen text, no overlays, no floating logos");
