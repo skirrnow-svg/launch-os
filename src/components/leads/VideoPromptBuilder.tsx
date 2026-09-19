@@ -201,9 +201,17 @@ export type BuilderAccessProp = {
   advancedMin: number;
 };
 
-export default function VideoPromptBuilder({ access }: { access: BuilderAccessProp }) {
-  const canBasic = access.level !== "none"; // guided path usable
-  const canAdvanced = access.level === "advanced"; // pro controls usable
+export default function VideoPromptBuilder({ access, isAdmin = false }: { access: BuilderAccessProp; isAdmin?: boolean }) {
+  // Admin/owner preview: the owner always resolves to "advanced", but can flip
+  // this local toggle to see EXACTLY what a Locked / Free (guided) / Advanced
+  // user gets. It only changes the on-screen tier — the owner's real generation
+  // rights are unaffected (the server still treats an admin as advanced).
+  const [previewLevel, setPreviewLevel] = useState<"none" | "basic" | "advanced">(
+    access.level === "none" ? "advanced" : access.level,
+  );
+  const effectiveLevel = isAdmin ? previewLevel : access.level;
+  const canBasic = effectiveLevel !== "none"; // guided path usable
+  const canAdvanced = effectiveLevel === "advanced"; // pro controls usable
   const isPaid = canBasic; // Generate is allowed from the basic tier up
 
   const [open, setOpen] = useState(false);
@@ -428,6 +436,35 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
             answer a couple of questions, and generate.
           </p>
 
+          {isAdmin && (
+            <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2">
+              <span className="text-[11px] font-semibold uppercase tracking-wide text-violet-700">
+                Admin preview · view as
+              </span>
+              {([
+                ["none", "Locked"],
+                ["basic", "Free (Guided)"],
+                ["advanced", "Advanced (Pro)"],
+              ] as const).map(([lvl, lbl]) => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setPreviewLevel(lvl)}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                    previewLevel === lvl
+                      ? "border-violet-600 bg-violet-600 text-white"
+                      : "border-violet-300 bg-white text-violet-700 hover:border-violet-500"
+                  }`}
+                >
+                  {lbl}
+                </button>
+              ))}
+              <span className="basis-full text-[11px] text-violet-600">
+                Only you (owner/admin) see this. It previews exactly what each tier shows — your own generation rights are unaffected.
+              </span>
+            </div>
+          )}
+
           {!canBasic && (
             <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
               <span className="font-semibold">Locked preview.</span> The AI Video Prompt Builder
@@ -537,6 +574,45 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                   {OPT.lightingAndAtmosphere.map((v) => (
                     <option key={v} value={v}>
                       {v}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field label="Shot type — how close is the camera?">
+                <select
+                  value={framing[0] ?? ""}
+                  onChange={(e) => changeFraming(e.target.value ? [e.target.value] : [])}
+                  className={inputCls}
+                >
+                  <option value="">Auto — cinematic default</option>
+                  {FRAMINGS.map((f) => (
+                    <option key={f} value={f}>
+                      {f}
+                    </option>
+                  ))}
+                </select>
+                {actorsDisabled ? (
+                  <span className="mt-1 text-[11px] text-amber-700">
+                    Close-up / detail shots turn off people to keep scale natural — pick a medium or wide shot to add someone.
+                  </span>
+                ) : (
+                  <span className="mt-1 text-[11px] text-slate-400">
+                    Sets how much of the subject is in frame — the camera and lens are matched for you.
+                  </span>
+                )}
+              </Field>
+
+              <Field label="Camera movement (optional)">
+                <select
+                  value={movements[0] ?? ""}
+                  onChange={(e) => setMovements(e.target.value ? [e.target.value] : [])}
+                  className={inputCls}
+                >
+                  <option value="">Still / locked-off</option>
+                  {MOVEMENTS.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
                     </option>
                   ))}
                 </select>

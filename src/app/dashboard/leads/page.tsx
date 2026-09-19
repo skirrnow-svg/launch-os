@@ -45,6 +45,7 @@ export default function LeadsPage() {
   const [addendum, setAddendum] = useState<Record<string, string>>({});
   const [preview, setPreview] = useState<{ title: string; html: string } | null>(null);
   const [access, setAccess] = useState<BuilderAccessProp>({ level: "none", basicMin: 10, advancedMin: 25 });
+  const [isAdmin, setIsAdmin] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -68,6 +69,7 @@ export default function LeadsPage() {
       .then((d) => {
         const b = d?.plan?.builder;
         if (b && typeof b.level === "string") setAccess(b as BuilderAccessProp);
+        if (typeof d?.isAdmin === "boolean") setIsAdmin(d.isAdmin);
       })
       .catch(() => {});
   }, []);
@@ -159,7 +161,7 @@ export default function LeadsPage() {
         generated concept video. Approve to mark the campaign ready for delivery.
       </p>
 
-      <VideoPromptBuilder access={access} />
+      <VideoPromptBuilder access={access} isAdmin={isAdmin} />
 
       {error && <p className="mt-4 rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-700">{error}</p>}
       {loading && <p className="mt-6 text-slate-400">Loading…</p>}
