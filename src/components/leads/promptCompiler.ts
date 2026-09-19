@@ -23,6 +23,7 @@ export interface ProVideoPromptState {
   lighting: string[];
   materials: string[];
   durationSeconds?: number; // clip length; drives the linter's action-density cap
+  aspectRatio?: "16:9" | "9:16" | "1:1"; // compositional framing guardrail
   cinemaKit?: {
     cameraBody?: "ARRI Alexa Mini LF" | "RED V-Raptor 8K" | "Sony FX9" | "35mm Cine Camera";
     lensProfile?: "Anamorphic 35mm Prime" | "Cooke S4/i 50mm Prime" | "90mm Macro Cine Prime";
@@ -84,6 +85,22 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     parts.push("ground contact shadows, authentic traction, rigid mechanical frame with zero clipping, natural mass inertia");
   }
 
+  // Kinematic & physics precision — the core tuning for high-fidelity commercial
+  // renders: real weight transfer and controlled continuous motion.
+  parts.push(
+    "Natural kinematic weight transfer with realistic mass inertia — suspension compression, tire and boot traction, grounded momentum; controlled continuous motion with no sudden speed snaps, flips, or exaggerated kicks",
+  );
+
+  // Compositional framing guardrail per aspect ratio.
+  const aspect = state.aspectRatio ?? "16:9";
+  if (aspect === "9:16") {
+    parts.push("vertical 9:16 framing, subject centered, full ground-plane contact visible in the lower third with ample head/foot clearance");
+  } else if (aspect === "1:1") {
+    parts.push("square 1:1 composition, subject centered with even balanced margins");
+  } else {
+    parts.push("wide 16:9 widescreen composition with balanced horizontal negative space");
+  }
+
   const colorProfile = state.cinemaKit?.colorScience || "graded commercial film LUT";
   const shutterSpeed = (state.guardrails.lockShutterSpeed ?? true)
     ? "24fps, strict 180-degree shutter angle, zero digital motion blur"
@@ -110,6 +127,8 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     state.guardrails.lockAnatomy ? "morphing limbs, extra legs, duplicate feet, backward-facing anatomy, snapping joints, mutated hands, extra fingers" : null,
     state.guardrails.enforcePhysics ? "martial arts high kick, floating vehicle, zero suspension compression, clipping through metal, rubbery physics, defying gravity, melting surfaces" : null,
     "sudden scale shifts, subject-scale hallucination, feet morphing into vehicle parts, uncontrolled zoom, inconsistent subject size, lens breathing",
+    "sudden speed ramps, speed snapping, teleporting motion, backflip, front flip, exaggerated high kick, jerky acceleration, flailing limbs",
+    "watermark, floating badges, on-screen typography, station logos, timecode overlays",
     "erratic motion blur, frame interpolation artifacts, stutter, low bitrate, blurry textures, AI plastic skin"
   ].filter(Boolean).join(", ");
 

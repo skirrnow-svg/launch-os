@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveBuilderAccess } from "@/lib/billing/builderGate";
-import { modelFor, triggerRunner } from "@/lib/jobs";
+import { triggerRunner } from "@/lib/jobs";
 import { creditCostFor } from "@/lib/billing/actionCosts";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
@@ -98,7 +98,6 @@ export const POST = withErrors(async (request: Request) => {
     return NextResponse.json({
       status: "confirmation-required",
       estimatedCredits,
-      model: modelFor("video"),
       estimate: "approximate",
     });
   }

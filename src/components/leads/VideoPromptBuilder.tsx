@@ -220,6 +220,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
   const [lighting, setLighting] = useState<string[]>([]); // up to 2
   const [materials, setMaterials] = useState<string[]>([]); // up to 4
   const [duration, setDuration] = useState(4); // clip length (s) — drives the linter's action budget
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
 
   // Cinema kit — optical/colour profiles ("" = Auto → compiler default).
   const [cameraBody, setCameraBody] = useState<CameraBody | "">("");
@@ -250,20 +251,22 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     setMaterials(p.materials);
   }
 
-  // Current framing's scale scope drives which actions/lenses are valid.
+  // Current framing's scale scope drives which actions/lenses/actors are valid.
   const curFramingScope = framingScope(framing[0]);
   const allowedActions = OPT.actionsAndMechanics.filter((a) => actionAllowedInScope(a, curFramingScope));
   const allowedLenses = compatibleLenses(curFramingScope);
   const lensLocked = curFramingScope === "macro";
+  const actorsDisabled = curFramingScope === "macro"; // actors morph scale in close-ups
 
-  // Keep lens + action coherent with the chosen framing scale — this is what
-  // prevents the macro/full "scale hallucination". Used wherever framing is set.
+  // Keep lens + action + actors coherent with the chosen framing scale — this is
+  // what prevents the macro/full "scale hallucination". Used wherever framing is set.
   function changeFraming(next: string[]) {
     setFraming(next);
     const scope = framingScope(next[0]);
     if (scope === "macro") {
       if (lensProfile && lensProfile !== MACRO_LENS) setLensProfile(MACRO_LENS);
       if (action && actionScope(action) === "full") setAction(""); // drop a now-invalid full-body action
+      if (actors.length) setActors([]);                             // no full-body actor in a macro shot
     } else if (scope === "full" && lensProfile === MACRO_LENS) {
       setLensProfile(""); // back to Auto (a full-scope lens)
     }
@@ -281,6 +284,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       lighting,
       materials,
       durationSeconds: duration,
+      aspectRatio,
       cinemaKit: {
         cameraBody: cameraBody || undefined,
         lensProfile: lensProfile || undefined,
@@ -290,7 +294,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     };
     return compileVideoPrompts(state);
   }, [
-    hero, actors, action, framing, movements, environments, lighting, materials, duration,
+    hero, actors, action, framing, movements, environments, lighting, materials, duration, aspectRatio,
     cameraBody, lensProfile, colorScience,
     enforcePhysics, suppressText, lockAnatomy, rigidCollisions, lockShutterSpeed,
   ]);
@@ -338,7 +342,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       if (est.status !== "confirmation-required") throw new Error("Unexpected response.");
 
       const ok = window.confirm(
-        `Generate this video now?\n\nFrom ~${est.estimatedCredits} Higgsfield credits (${est.model}) — the base rate for a short clip; longer or higher-resolution clips cost more.\nIt renders in the background and appears in your Video Studio project.`,
+        `Generate this HD commercial render now?\n\n~${est.estimatedCredits} credits — the base rate for a short clip; longer or higher-resolution renders cost more.\nIt renders in the background and appears in your Video Studio project.`,
       );
       if (!ok) return;
 
@@ -452,9 +456,10 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
 
               <Field label="Who is in it? (optional)">
                 <select
-                  value={actors[0] ?? ""}
+                  value={actorsDisabled ? "" : (actors[0] ?? "")}
                   onChange={(e) => setActors(e.target.value ? [e.target.value] : [])}
-                  className={inputCls}
+                  disabled={actorsDisabled}
+                  className={`${inputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
                 >
                   <option value="">Just the product — no people</option>
                   {OPT.actorsAndWardrobe.slice(0, 7).map((a) => (
@@ -463,6 +468,11 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                     </option>
                   ))}
                 </select>
+                {actorsDisabled && (
+                  <span className="mt-1 text-[11px] text-amber-700">
+                    Actors are automatically disabled for macro/detail shots to prevent scale distortion.
+                  </span>
+                )}
               </Field>
 
               <Field label="Where does it happen?">
@@ -549,6 +559,30 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
               </p>
             </div>
 
+            <div className="mt-4">
+              <span className="text-xs font-semibold text-slate-600">Aspect ratio</span>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {([
+                  ["16:9", "16:9 Landscape"],
+                  ["9:16", "9:16 Vertical (Story / Ad)"],
+                  ["1:1", "1:1 Square"],
+                ] as const).map(([val, lbl]) => (
+                  <button
+                    key={val}
+                    type="button"
+                    onClick={() => setAspectRatio(val)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      aspectRatio === val
+                        ? "border-indigo-600 bg-indigo-600 text-white"
+                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+                    }`}
+                  >
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <p className="mt-3 text-[11px] text-slate-400">
               Quality &amp; safety filters (natural physics, clean footage, no glitchy limbs) are on
               automatically.
@@ -612,7 +646,13 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
 
                 {/* Full multi-select chip controls */}
                 <div className="mt-4 grid gap-5">
-                  <ChipGroup label="Actor & wardrobe" hint="pick 1–2" options={OPT.actorsAndWardrobe} selected={actors} onChange={setActors} max={2} />
+                  {actorsDisabled ? (
+                    <div className="opacity-50">
+                      <ChipGroup label="Actor & wardrobe" hint="disabled for macro/detail shots" options={OPT.actorsAndWardrobe} selected={[]} onChange={() => {}} max={2} />
+                    </div>
+                  ) : (
+                    <ChipGroup label="Actor & wardrobe" hint="pick 1–2" options={OPT.actorsAndWardrobe} selected={actors} onChange={setActors} max={2} />
+                  )}
                   <ChipGroup label="Camera framing" hint="pick 1" options={FRAMINGS} selected={framing} onChange={changeFraming} max={1} />
                   <ChipGroup label="Camera movement" hint="up to 2" options={MOVEMENTS} selected={movements} onChange={setMovements} max={2} />
                   <ChipGroup label="Environment" hint="up to 3" options={OPT.environments} selected={environments} onChange={setEnvironments} max={3} />
