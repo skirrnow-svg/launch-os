@@ -11,7 +11,8 @@
  * resolveScaleConflicts so a macro framing can never be paired with a full-body
  * action or a wide/anamorphic lens (the cause of scale-hallucination artifacts).
  */
-import { FRAMING_SCOPE, resolveScaleConflicts } from "./promptBuilderOptions";
+import { FRAMING_SCOPE } from "./promptBuilderOptions";
+import { preflightLint } from "./promptLinter";
 
 export interface ProVideoPromptState {
   heroSubject: string;
@@ -21,6 +22,7 @@ export interface ProVideoPromptState {
   environments: string[];
   lighting: string[];
   materials: string[];
+  durationSeconds?: number; // clip length; drives the linter's action-density cap
   cinemaKit?: {
     cameraBody?: "ARRI Alexa Mini LF" | "RED V-Raptor 8K" | "Sony FX9" | "35mm Cine Camera";
     lensProfile?: "Anamorphic 35mm Prime" | "Cooke S4/i 50mm Prime" | "90mm Macro Cine Prime";
@@ -40,32 +42,45 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
 
   const cameraRig = state.cinemaKit?.cameraBody || "ARRI Alexa Mini LF";
 
-  // Split camera into framings vs movements, then resolve any scale/optical
-  // conflict (macro framing + full-body action, or a mismatched lens).
+  // Split camera into framings vs movements.
   const framings = state.camera.filter((c) => c in FRAMING_SCOPE);
   const movements = state.camera.filter((c) => !(c in FRAMING_SCOPE));
   const effectiveLens = state.cinemaKit?.lensProfile || "Anamorphic 35mm Prime";
-  const resolved = resolveScaleConflicts({ framings, action: state.action, lens: effectiveLens });
-  const lens = resolved.lens;
+  const duration = state.durationSeconds ?? 4;
 
-  const cameraTerms = [...resolved.framings, ...movements].filter(Boolean);
+  // PRE-FLIGHT LINT & SANITIZE — optics alignment, action-scope lock, action-
+  // density cap, and redundancy pruning. Returns corrected fields + a list of
+  // what was changed (surfaced to the user).
+  const lint = preflightLint({
+    framing: framings[0] ?? "",
+    lens: effectiveLens,
+    action: state.action,
+    actors: state.actors,
+    materials: state.materials,
+    heroSubject: state.heroSubject,
+    durationSeconds: duration,
+    rigidCollisions: state.guardrails.rigidCollisions ?? true,
+  });
+  const lens = lint.lens;
+
+  const cameraTerms = [...framings, ...movements].filter(Boolean);
   const framing = cameraTerms.length ? cameraTerms.join(", ") : "Cinematic commercial tracking shot";
   parts.push(`Captured on ${cameraRig} with ${lens}, ${framing} focused on ${state.heroSubject || "the hero subject"}`);
 
-  if (state.actors.length) parts.push(`featuring ${state.actors.join(" and ")}`);
+  if (lint.actors.length) parts.push(`featuring ${lint.actors.join(" and ")}`);
 
   const envLight: string[] = [];
   if (state.environments.length) envLight.push(`set in ${state.environments.join(", ")}`);
   if (state.lighting.length) envLight.push(`directional lighting via ${state.lighting.join(" and ")}`);
   if (envLight.length) parts.push(envLight.join(", "));
 
-  if (state.action) parts.push(`Action: ${state.action}`);
+  if (lint.action) parts.push(`Action: ${lint.action}`);
 
-  if (state.materials.length) {
-    parts.push(`Tactile surface details highlighting ${state.materials.join(", ")} with sharp edge separation and specular highlights`);
+  if (lint.materials.length) {
+    parts.push(`Tactile surface details highlighting ${lint.materials.join(", ")} with sharp edge separation and specular highlights`);
   }
 
-  if (state.guardrails.rigidCollisions ?? true) {
+  if (lint.rigidCollisions) {
     parts.push("ground contact shadows, authentic traction, rigid mechanical frame with zero clipping, natural mass inertia");
   }
 
@@ -73,7 +88,7 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
   const shutterSpeed = (state.guardrails.lockShutterSpeed ?? true)
     ? "24fps, strict 180-degree shutter angle, zero digital motion blur"
     : "24fps, real-time 1.0x velocity";
-  parts.push(`${shutterSpeed}, ${colorProfile}`);
+  parts.push(`${shutterSpeed}, ${colorProfile}, ${duration}-second clip`);
 
   if (state.guardrails.suppressText) {
     parts.push("100% clean broadcast footage, zero on-screen text, no overlays, no floating logos");
@@ -98,7 +113,7 @@ export function compileVideoPrompts(state: ProVideoPromptState) {
     "erratic motion blur, frame interpolation artifacts, stutter, low bitrate, blurry textures, AI plastic skin"
   ].filter(Boolean).join(", ");
 
-  return { positivePrompt, negativePrompt };
+  return { positivePrompt, negativePrompt, corrections: lint.corrections };
 }
 
 // Cinema-kit option lists for the UI (mirror the interface unions).

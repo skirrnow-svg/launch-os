@@ -219,6 +219,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
   const [environments, setEnvironments] = useState<string[]>([]); // up to 3
   const [lighting, setLighting] = useState<string[]>([]); // up to 2
   const [materials, setMaterials] = useState<string[]>([]); // up to 4
+  const [duration, setDuration] = useState(4); // clip length (s) — drives the linter's action budget
 
   // Cinema kit — optical/colour profiles ("" = Auto → compiler default).
   const [cameraBody, setCameraBody] = useState<CameraBody | "">("");
@@ -268,8 +269,9 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     }
   }
 
-  // Assemble the pro state and compile to a positive/negative pair.
-  const { positivePrompt, negativePrompt } = useMemo(() => {
+  // Assemble the pro state and compile to a positive/negative pair (plus the
+  // pre-flight linter's list of auto-corrections).
+  const { positivePrompt, negativePrompt, corrections } = useMemo(() => {
     const state: ProVideoPromptState = {
       heroSubject: hero.trim(),
       actors,
@@ -278,6 +280,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
       environments,
       lighting,
       materials,
+      durationSeconds: duration,
       cinemaKit: {
         cameraBody: cameraBody || undefined,
         lensProfile: lensProfile || undefined,
@@ -287,7 +290,7 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
     };
     return compileVideoPrompts(state);
   }, [
-    hero, actors, action, framing, movements, environments, lighting, materials,
+    hero, actors, action, framing, movements, environments, lighting, materials, duration,
     cameraBody, lensProfile, colorScience,
     enforcePhysics, suppressText, lockAnatomy, rigidCollisions, lockShutterSpeed,
   ]);
@@ -523,7 +526,30 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
                 </Field>
               </div>
             </div>
-            <p className="mt-2 text-[11px] text-slate-400">
+            <div className="mt-4">
+              <span className="text-xs font-semibold text-slate-600">Clip length</span>
+              <div className="mt-1 flex gap-2">
+                {[4, 6].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setDuration(s)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      duration === s
+                        ? "border-indigo-600 bg-indigo-600 text-white"
+                        : "border-slate-300 bg-white text-slate-600 hover:border-indigo-400"
+                    }`}
+                  >
+                    {s} seconds
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 text-[11px] text-slate-400">
+                We automatically limit how many actions pack into {duration} seconds so the motion stays clean.
+              </p>
+            </div>
+
+            <p className="mt-3 text-[11px] text-slate-400">
               Quality &amp; safety filters (natural physics, clean footage, no glitchy limbs) are on
               automatically.
             </p>
@@ -630,6 +656,18 @@ export default function VideoPromptBuilder({ access }: { access: BuilderAccessPr
             <p className="mt-1 text-sm text-slate-800">
               {canBuild ? summary : "Pick a style above, or tell us what you are featuring, to begin."}
             </p>
+            {canBuild && corrections.length > 0 && (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                <div className="text-[11px] font-semibold uppercase tracking-wide text-amber-700">
+                  Auto-corrected for a clean render
+                </div>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-amber-800">
+                  {corrections.map((c, i) => (
+                    <li key={i}>{c}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {canBuild && (
               <>
                 <button
