@@ -1,22 +1,25 @@
 import { NextResponse } from "next/server";
 import { withErrors } from "@/lib/api";
 import { verifyCode } from "@/lib/free/verify";
+import { countFreeUses } from "@/lib/free/entitlement";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
 
 /**
- * POST /api/public/brand/lead — unlock a Brand Studio download after email
- * verification, and capture the visitor as a lead.
+ * POST /api/public/brand/lead — unlock a Brand Studio download for a signed-out
+ * visitor after email (pin) verification.
  *
- * PUBLIC (covered by /api/public in middleware). The 6-digit code is emailed by
- * the shared /api/public/free/code route; here we verify it (stateless signed
- * token) and record a lightweight lead. Phone OTP is added as a second factor
- * once an OTP provider is wired (SN77).
+ * Ladder: an email-verified visitor gets ONE free branded download; a second
+ * needs a free account (the client sends signed-in users straight to the
+ * download, so they never hit this route). PUBLIC (covered by /api/public). The
+ * 6-digit code is emailed by /api/public/free/code; here we verify it and, if
+ * this email hasn't used its free download yet, record the lead and allow it.
  *
- * Body: { email, code, token, media? }.  Returns: { ok }.
+ * Body: { email, code, token, media? }.  Returns: { ok } | 403 { needsSignup }.
  */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const FREE_BRAND_LIMIT = 1;
 
 export const POST = withErrors<unknown>(async (request) => {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
@@ -32,11 +35,19 @@ export const POST = withErrors<unknown>(async (request) => {
     return NextResponse.json({ error: "That code is incorrect or has expired." }, { status: 400 });
   }
 
-  // Brand Studio branding is UNLIMITED and free — no per-email limit, no
-  // paywall. We just capture the visitor as a lead (best-effort) the first
-  // time they verify; never block the download on our own storage.
   const orgId = process.env.DEFAULT_LEAD_ORG_ID;
   if (orgId) {
+    // One free branded download per email; a second must create an account.
+    if ((await countFreeUses(orgId, email, "brand-studio")) >= FREE_BRAND_LIMIT) {
+      return NextResponse.json(
+        {
+          error: "You've used your free branded download. Create a free account for unlimited branding.",
+          needsSignup: true,
+        },
+        { status: 403 },
+      );
+    }
+    // Record the claim (best-effort — never block the free download on storage).
     try {
       await prisma.lead.create({
         data: {
