@@ -3,7 +3,7 @@ import { getContext, isPlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { resolveBuilderAccess } from "@/lib/billing/builderGate";
 import { triggerRunner } from "@/lib/jobs";
-import { creditCostFor } from "@/lib/billing/actionCosts";
+import { estimateVideoCredits } from "@/lib/billing/videoCredits";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
 import { withErrors } from "@/lib/api";
@@ -115,7 +115,9 @@ export const POST = withErrors(async (request: Request) => {
   }
   const confirmed = body.confirmed === true;
 
-  const estimatedCredits = await creditCostFor("video");
+  // Real Higgsfield price for this resolution + duration (mirrors the runner's
+  // resolution→mode mapping), not a flat estimate.
+  const estimatedCredits = estimateVideoCredits(resolution, duration);
 
   if (!confirmed) {
     return NextResponse.json({

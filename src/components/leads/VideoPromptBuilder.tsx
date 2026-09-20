@@ -22,6 +22,7 @@ import {
   type LensProfile,
   type ColorScience,
 } from "./promptCompiler";
+import { estimateVideoCredits } from "@/lib/billing/videoCredits";
 
 /**
  * Universal AI Video Prompt Builder (see Instructions/videogenpromptgen.txt).
@@ -296,6 +297,8 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
   ]);
 
   const canBuild = hero.trim().length > 0;
+  // Live Higgsfield price estimate for the chosen resolution + duration.
+  const estCredits = estimateVideoCredits(resolution, duration);
 
   // Friendly, plain-English description of what will be generated.
   const summary = useMemo(() => {
@@ -367,7 +370,7 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
       if (est.status !== "confirmation-required") throw new Error("Unexpected response.");
 
       const ok = window.confirm(
-        `Generate this ${resolution} ${mode === "i2v" ? "image-to-video" : "commercial"} render now? (${duration}s · ${aspectRatio})\n\n~${est.estimatedCredits} credits — the base rate; longer clips and higher resolution cost more.\nIt renders in the background and appears in your Video Studio project.`,
+        `Generate this ${resolution} ${mode === "i2v" ? "image-to-video" : "commercial"} render now? (${duration}s · ${aspectRatio})\n\n~${est.estimatedCredits} credits — Higgsfield's price for ${resolution} · ${duration}s.\nIt renders in the background and appears in your Video Studio project.`,
       );
       if (!ok) return;
 
@@ -916,6 +919,14 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
               </>
             )}
           </div>
+
+          {/* Live cost estimate — Higgsfield's real price for this res + length */}
+          {isPaid && canBuild && (
+            <p className="mb-2 text-xs text-slate-500">
+              Estimated cost: <span className="font-semibold text-slate-700">~{estCredits} credits</span>{" "}
+              <span className="text-slate-400">({resolution} · {duration}s)</span>
+            </p>
+          )}
 
           {/* Actions */}
           <div className="flex flex-wrap items-center gap-3">
