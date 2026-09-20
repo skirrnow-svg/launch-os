@@ -95,6 +95,18 @@ export default function BrandStudio() {
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
 
+  // Lead gate — verify email (6-digit code) once, then downloads are unlocked
+  // for this browser. Phone OTP is added as a second factor once wired (SN77).
+  const [unlocked, setUnlocked] = useState(false);
+  const [gate, setGate] = useState<"closed" | "email" | "code">("closed");
+  const [gEmail, setGEmail] = useState("");
+  const [gCode, setGCode] = useState("");
+  const [gToken, setGToken] = useState("");
+  const [gBusy, setGBusy] = useState(false);
+  const [gErr, setGErr] = useState("");
+  const pendingRef = useRef<"image" | "video" | null>(null);
+  useEffect(() => { try { setUnlocked(localStorage.getItem("sn_brand_unlocked") === "1"); } catch { /* private mode */ } }, []);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const opts: BrandOpts = { brandName, tagline, color, position, logo: logo.img };
@@ -203,6 +215,48 @@ export default function BrandStudio() {
     }
   }, [videoFile, videoDims, overlayUrl, brandName]);
 
+  function runPending() {
+    const k = pendingRef.current;
+    pendingRef.current = null;
+    if (k === "image") downloadImage();
+    else if (k === "video") void brandVideo();
+  }
+  function requestDownload(kind: "image" | "video") {
+    if (unlocked) { pendingRef.current = kind; runPending(); return; }
+    pendingRef.current = kind;
+    setGErr(""); setGate("email");
+  }
+  async function sendGateCode() {
+    setGErr("");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gEmail.trim())) { setGErr("Enter a valid email address."); return; }
+    setGBusy(true);
+    try {
+      const r = await fetch("/api/public/free/code", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: gEmail.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Could not send the code.");
+      setGToken(d.token); setGate("code");
+    } catch (e) { setGErr(e instanceof Error ? e.message : "Could not send the code."); }
+    finally { setGBusy(false); }
+  }
+  async function verifyGate() {
+    setGErr(""); setGBusy(true);
+    try {
+      const r = await fetch("/api/public/brand/lead", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: gEmail.trim(), code: gCode.trim(), token: gToken, media: pendingRef.current ?? "image" }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "That code is incorrect or has expired.");
+      try { localStorage.setItem("sn_brand_unlocked", "1"); } catch { /* private mode */ }
+      setUnlocked(true); setGate("closed");
+      runPending();
+    } catch (e) { setGErr(e instanceof Error ? e.message : "That code is incorrect."); }
+    finally { setGBusy(false); }
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[340px_1fr]">
       {/* Controls */}
@@ -262,18 +316,52 @@ export default function BrandStudio() {
 
         {mediaType === "video" ? (
           <div>
-            <button type="button" onClick={brandVideo} disabled={busy}
+            <button type="button" onClick={() => requestDownload("video")} disabled={busy}
               className="w-full rounded bg-accent px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40">
               {busy ? `Branding video… ${pct}%` : "Brand & download video"}
             </button>
             {busy && <p className="mt-1 text-[11px] text-slate-400">Rendering in your browser — first run downloads the encoder (~30 MB), then a few seconds per second of video.</p>}
           </div>
         ) : (
-          <button type="button" onClick={downloadImage} disabled={mediaType !== "image"}
+          <button type="button" onClick={() => requestDownload("image")} disabled={mediaType !== "image"}
             className="w-full rounded bg-accent px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-40">
             Download branded image
           </button>
         )}
+
+        {/* Lead gate — verify email once to unlock free downloads */}
+        {gate !== "closed" && (
+          <div className="rounded-lg border border-accent bg-accent/5 p-4">
+            <div className="text-sm font-semibold text-slate-900">One step — verify your email to download free</div>
+            {gate === "email" ? (
+              <div className="mt-2 space-y-2">
+                <input type="email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} placeholder="you@company.com" className={inputCls} />
+                <div className="flex gap-2">
+                  <button type="button" onClick={sendGateCode} disabled={gBusy}
+                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">
+                    {gBusy ? "Sending…" : "Email me a code"}
+                  </button>
+                  <button type="button" onClick={() => setGate("closed")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-2 space-y-2">
+                <p className="text-xs text-slate-500">We emailed a 6-digit code to <b>{gEmail}</b>.</p>
+                <input inputMode="numeric" value={gCode} onChange={(e) => setGCode(e.target.value)} placeholder="123456" className={inputCls} />
+                <div className="flex gap-2">
+                  <button type="button" onClick={verifyGate} disabled={gBusy}
+                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">
+                    {gBusy ? "Verifying…" : "Verify & download"}
+                  </button>
+                  <button type="button" onClick={() => setGate("email")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Change email</button>
+                </div>
+              </div>
+            )}
+            {gErr && <p className="mt-2 text-xs text-rose-600">{gErr}</p>}
+            <p className="mt-2 text-[11px] text-slate-400">Free — we&apos;ll never spam you. Phone verification is coming for extra security.</p>
+          </div>
+        )}
+        {unlocked && <p className="text-[11px] font-semibold text-emerald-700">✓ Email verified — downloads unlocked</p>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">Want more?</span> Save this brand kit once and it auto-applies
