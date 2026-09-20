@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { saveDraft, loadDraft, clearDraft } from "@/lib/brand/draft";
 
 /**
  * Brand Studio (free wedge) — stamp any IMAGE or VIDEO with a brand overlay,
@@ -192,6 +193,10 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
   const [videoUrl, setVideoUrl] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  // Raw uploaded files kept so a signed-out draft can be re-saved and restored.
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [restored, setRestored] = useState(false);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number; dur: number } | null>(null);
   const [err, setErr] = useState("");
 
@@ -219,7 +224,7 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
     if (!file) return;
     if (/^image\/(png|jpe?g|webp)$/.test(file.type)) {
       const image = new Image();
-      image.onload = () => { setImageEl(image); setMediaType("image"); setVideoUrl(""); setVideoFile(null); setVideoDims(null); };
+      image.onload = () => { setImageEl(image); setMediaType("image"); setVideoUrl(""); setVideoFile(null); setVideoDims(null); setMediaFile(file); };
       image.src = URL.createObjectURL(file);
     } else if (/^video\/(mp4|webm|quicktime)$/.test(file.type) || /\.(mp4|webm|mov)$/i.test(file.name)) {
       if (file.size > MAX_VIDEO_BYTES) { setErr("Video is too large — keep it under 60 MB."); return; }
@@ -229,7 +234,7 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
       v.onloadedmetadata = () => {
         if (v.duration > MAX_VIDEO_SECONDS + 0.5) { setErr(`Video is too long — keep it under ${MAX_VIDEO_SECONDS}s.`); URL.revokeObjectURL(url); return; }
         setVideoDims({ w: v.videoWidth, h: v.videoHeight, dur: v.duration });
-        setVideoUrl(url); setVideoFile(file); setMediaType("video"); setImageEl(null);
+        setVideoUrl(url); setVideoFile(file); setMediaType("video"); setImageEl(null); setMediaFile(file);
       };
       v.src = url;
     } else {
@@ -326,8 +331,34 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
     pendingRef.current = kind;
     // Gate: a free account (no credit card) unlocks unlimited downloads.
     if (isSignedIn) { runPending(); return; }
+    // Save the work so it survives the sign-up redirect, then prompt to sign up.
+    void saveDraft(
+      { brandName, tagline, color, layout, nameFont, tagFont, logoTransparent, pending: kind },
+      mediaFile,
+      logoFile,
+    );
     setNeedSignup(true);
   }
+
+  // Returning from sign-up: restore the saved upload + branding, download-ready.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    let cancelled = false;
+    (async () => {
+      const d = await loadDraft();
+      if (!d || cancelled) return;
+      const { draft, media, logo: logoF } = d;
+      setBrandName(draft.brandName); setTagline(draft.tagline); setColor(draft.color);
+      setLayout(draft.layout as Layout); setNameFont(draft.nameFont); setTagFont(draft.tagFont);
+      setLogoTransparent(draft.logoTransparent);
+      if (media) loadFile(media);
+      if (logoF) { logo.load(logoF); setLogoFile(logoF); }
+      setRestored(true);
+      await clearDraft();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn]);
 
   return (
     <div className="grid gap-8 lg:grid-cols-[340px_1fr]">
@@ -383,7 +414,7 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
           <label className="flex cursor-pointer items-center justify-between text-sm">
             <span className="font-semibold text-slate-700">{logo.img ? "Change logo" : "Add a logo (optional)"}</span>
             {logo.img && <button type="button" onClick={(e) => { e.preventDefault(); logo.clear(); }} className="text-xs font-semibold text-rose-600 hover:underline">Remove</button>}
-            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => logo.load(e.target.files?.[0])} />
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; logo.load(f); setLogoFile(f ?? null); }} />
           </label>
           {logo.img && (
             <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-slate-600">
@@ -412,7 +443,9 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
           <div className="rounded-lg border border-accent bg-accent/5 p-4">
             <div className="text-sm font-semibold text-slate-900">Create your free account to download</div>
             <p className="mt-1 text-xs text-slate-600">
-              No credit card — a free account gets you unlimited branded images and videos.
+              No credit card — a free account gets you unlimited branded images and videos. We verify your email with
+              a quick code. <span className="font-medium text-slate-800">Your design is saved</span> — you&apos;ll come
+              right back to it, ready to download.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <Link href="/sign-up?redirect_url=/brand-studio" className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">Sign up free →</Link>
@@ -420,7 +453,8 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
             </div>
           </div>
         )}
-        {isSignedIn && <p className="text-[11px] font-semibold text-emerald-700">✓ Signed in — unlimited free downloads</p>}
+        {restored && <p className="text-[11px] font-semibold text-emerald-700">✓ Welcome back — your design is restored. Click Download below.</p>}
+        {isSignedIn && !restored && <p className="text-[11px] font-semibold text-emerald-700">✓ Signed in — unlimited free downloads</p>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">Want more?</span> Save this brand kit once and it auto-applies

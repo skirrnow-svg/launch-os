@@ -37,10 +37,23 @@ export default function FreeGenerator({ isSignedIn }: { isSignedIn: boolean }) {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
+  // Returning from sign-up: restore the website URL they'd entered.
+  useEffect(() => {
+    if (!isSignedIn) return;
+    try {
+      const saved = localStorage.getItem("sn_free_url");
+      if (saved) { setUrl(saved); localStorage.removeItem("sn_free_url"); }
+    } catch { /* private mode */ }
+  }, [isSignedIn]);
+
   async function generate(e: FormEvent) {
     e.preventDefault();
     // Gate: a free account (no credit card) is required to generate.
-    if (!isSignedIn) { setStep("signup"); return; }
+    if (!isSignedIn) {
+      try { localStorage.setItem("sn_free_url", url); } catch { /* private mode */ }
+      setStep("signup");
+      return;
+    }
     setBusy(true);
     setError("");
     setStep("working");
