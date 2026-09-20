@@ -56,19 +56,30 @@ function modelFor(type) {
  */
 function videoGenParams(req, imageDataUrl, assetId) {
   const RES = ["480p", "720p", "1080p"];
-  const AR = ["16:9", "9:16", "1:1"];
+  const AR = ["auto", "16:9", "9:16", "4:3", "3:4", "1:1", "21:9"];
   const res = RES.includes(req.resolution) ? req.resolution : "720p";
   const durN = Number(req.duration);
   const dur = Number.isFinite(durN) ? Math.min(15, Math.max(4, Math.round(durN))) : 6;
   const arReq = req.aspect_ratio || req.aspectRatio;
   const ar = AR.includes(arReq) ? arReq : "16:9";
-  const mode = req.mode === "i2v" ? "i2v" : "t2v";
+  const wantImage = req.mode === "i2v";
   // Default to seedance_2_0 (works on the Starter plan). seedance_2_5 needs a
   // Pro/Ultimate Higgsfield plan, so only use it when the enqueuer requested it.
   const model = typeof req.model === "string" && req.model ? req.model : "seedance_2_0";
-  const args = ["--resolution", res, "--duration", String(dur), "--aspect_ratio", ar, "--mode", mode];
+  const isV25 = /2[_.]5/.test(model);
+  const args = ["--resolution", res, "--duration", String(dur), "--aspect_ratio", ar];
+  // --mode vocabulary differs by model family:
+  //  • seedance_2_5 → t2v | i2v (text- vs image-to-video)
+  //  • seedance_2_0 → std | fast (quality vs speed); image-to-video is driven by
+  //    the presence of --image, and 'fast' only supports 480p/720p (use std for
+  //    1080p). Default 480p/720p to 'fast' to stay economical on the shared cap.
+  if (isV25) {
+    args.push("--mode", wantImage ? "i2v" : "t2v");
+  } else {
+    args.push("--mode", res === "1080p" ? "std" : "fast");
+  }
   let imagePath = null;
-  if (mode === "i2v" && typeof imageDataUrl === "string") {
+  if (wantImage && typeof imageDataUrl === "string") {
     const m = imageDataUrl.match(/^data:image\/(png|jpe?g|webp);base64,(.+)$/);
     if (m) {
       const ext = m[1] === "jpeg" ? "jpg" : m[1];
