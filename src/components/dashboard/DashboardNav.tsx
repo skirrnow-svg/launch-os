@@ -46,6 +46,7 @@ export default function DashboardNav() {
     ...BASE,
     ...(isAgency || isAdmin ? [{ href: "/dashboard/brand", label: "Brand" }] : []),
     ...(isAdmin ? [{ href: "/dashboard/admin", label: "Admin" }] : []),
+    ...(isAdmin ? [{ href: "/dashboard/admin/visitors", label: "Visitors" }] : []),
   ];
 
   return (

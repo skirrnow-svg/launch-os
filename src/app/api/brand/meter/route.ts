@@ -4,7 +4,7 @@ import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { getEntitlement, periodUsage } from "@/lib/billing/entitlements";
 import { recordUsage } from "@/lib/usage";
-import { CREATION_TOKEN_COST } from "@/lib/billing/creationCosts";
+import { getCreationTokenCosts } from "@/lib/billing/creationCosts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export const POST = withErrors<unknown>(async (request) => {
   const { user, org } = await getContext();
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const media = body.media === "video" ? "video" : "image";
-  const cost = CREATION_TOKEN_COST[media];
+  const cost = (await getCreationTokenCosts())[media];
 
   const orgRow = await prisma.organizations.findUnique({
     where: { id: org.id },

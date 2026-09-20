@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import FreeGenerator from "@/components/free/FreeGenerator";
+import VisitBeacon from "@/components/site/VisitBeacon";
 
 export const metadata: Metadata = {
   title: "Free Product-to-Ad Generator — SkirrNow",
@@ -14,6 +15,7 @@ export default function FreePage() {
   const { userId } = auth();
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <VisitBeacon path="free" />
       <SiteHeader />
       <section className="mx-auto max-w-3xl px-6 pb-24 pt-16 sm:pt-20">
         <p className="font-mono text-xs uppercase tracking-widest text-accent">Free · Product-to-Ad generator</p>

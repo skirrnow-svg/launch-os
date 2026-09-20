@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import BrandStudio from "@/components/brand/BrandStudio";
+import VisitBeacon from "@/components/site/VisitBeacon";
 
 export const metadata: Metadata = {
   title: "Brand Studio — brand any image, free | SkirrNow",
@@ -14,6 +15,7 @@ export default function BrandStudioPage() {
   const { userId } = auth();
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
+      <VisitBeacon path="brand-studio" />
       <SiteHeader />
       <section className="mx-auto max-w-5xl px-6 pb-24 pt-16 sm:pt-20">
         <p className="font-mono text-xs uppercase tracking-widest text-accent">Free · Brand Studio</p>
