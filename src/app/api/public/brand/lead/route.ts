@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { withErrors } from "@/lib/api";
 import { verifyCode } from "@/lib/free/verify";
-import { hasClaimedFree } from "@/lib/free/entitlement";
 import { prisma } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -33,22 +32,11 @@ export const POST = withErrors<unknown>(async (request) => {
     return NextResponse.json({ error: "That code is incorrect or has expired." }, { status: 400 });
   }
 
-  // One free branded download per email. A second attempt must create an
-  // account. Enforced here (email-keyed) so clearing localStorage or using
-  // incognito can't hand out a second free download.
+  // Brand Studio branding is UNLIMITED and free — no per-email limit, no
+  // paywall. We just capture the visitor as a lead (best-effort) the first
+  // time they verify; never block the download on our own storage.
   const orgId = process.env.DEFAULT_LEAD_ORG_ID;
   if (orgId) {
-    if (await hasClaimedFree(orgId, email, "brand-studio")) {
-      return NextResponse.json(
-        {
-          error: "You've already used your free branded download. Create a free account to keep branding.",
-          needsAccount: true,
-        },
-        { status: 403 },
-      );
-    }
-    // Record the claim. If storage fails we still let this first download
-    // through — never block the free download on our own storage.
     try {
       await prisma.lead.create({
         data: {

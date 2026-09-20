@@ -1,31 +1,32 @@
 import { prisma } from "@/lib/db";
 
 /**
- * Free-wedge entitlement: ONE free use per email address, per wedge.
+ * Free-wedge entitlement.
  *
- * Each wedge records a Lead with a distinct `source` ("free-generator" for the
- * Product-to-Ad audit, "brand-studio" for Brand Studio). A prior lead with the
- * same email + source means the visitor already claimed their one free run and
- * must create an account to continue. Enforced server-side (email-keyed) so it
- * can't be bypassed by clearing localStorage or opening an incognito window.
+ * Brand Studio (image/video branding) is unlimited and free — it has NO limit
+ * here. The Product-to-Ad generator gives each email a small number of free
+ * ads, after which a payment wall applies. Usage is counted from the Lead table
+ * by email + source, so it's enforced server-side (email-keyed) and can't be
+ * bypassed by clearing localStorage or using incognito.
  */
 export type FreeSource = "free-generator" | "brand-studio";
 
+/** Free Product-to-Ad audits allowed per email before the payment wall. */
+export const FREE_AD_LIMIT = 2;
+
 const norm = (email: string) => email.trim().toLowerCase();
 
-/** True if this email has already claimed its free use of the given wedge. */
-export async function hasClaimedFree(
+/** How many times this email has already used the given free wedge. */
+export async function countFreeUses(
   orgId: string,
   email: string,
   source: FreeSource,
-): Promise<boolean> {
-  const existing = await prisma.lead.findFirst({
+): Promise<number> {
+  return prisma.lead.count({
     where: {
       org_id: orgId,
       source,
       email: { equals: norm(email), mode: "insensitive" },
     },
-    select: { id: true },
   });
-  return Boolean(existing);
 }

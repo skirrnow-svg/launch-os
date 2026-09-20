@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrors } from "@/lib/api";
 import { verifyCode } from "@/lib/free/verify";
 import { scrapeSite } from "@/lib/free/scrape";
-import { hasClaimedFree } from "@/lib/free/entitlement";
+import { countFreeUses, FREE_AD_LIMIT } from "@/lib/free/entitlement";
 import { ingestLead } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -41,14 +41,14 @@ export const POST = withErrors<unknown>(async (request) => {
     return NextResponse.json({ error: "Enter your website URL." }, { status: 400 });
   }
 
-  // One free audit per email. A second attempt with the same email must sign up.
-  if (await hasClaimedFree(orgId, email, "free-generator")) {
+  // Up to FREE_AD_LIMIT free ads per email, then a payment wall.
+  if ((await countFreeUses(orgId, email, "free-generator")) >= FREE_AD_LIMIT) {
     return NextResponse.json(
       {
-        error: "You've already used your free audit. Create a free account to run more.",
-        needsAccount: true,
+        error: `You've used your ${FREE_AD_LIMIT} free ads. Upgrade to a paid plan to generate more.`,
+        needsPayment: true,
       },
-      { status: 403 },
+      { status: 402 },
     );
   }
 
