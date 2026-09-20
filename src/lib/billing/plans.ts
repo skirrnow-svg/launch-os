@@ -113,7 +113,7 @@ export const BILLING_TIERS: BillingTier[] = [
  * unpromoted solo orgs). Generous on purpose — copy is cheap on the subscription
  * CLI, and a comfortable free allowance keeps the lead-gen wedge frictionless.
  */
-export const FREE_CLAUDE_TOKENS = 150_000;
+export const FREE_CLAUDE_TOKENS = 100_000;
 
 /** Landing / web pages on the free tier (no active plan). */
 export const FREE_LANDING_PAGES = 1;
