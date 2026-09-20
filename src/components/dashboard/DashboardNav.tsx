@@ -62,7 +62,7 @@ export default function DashboardNav() {
         ) : (
           // SkirrNow's own workspaces show the SkirrNow mark.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src="/logo.png" alt="SkirrNow" className="h-8 w-auto" />
+          <img src="/logo.png?v=2" alt="SkirrNow" className="h-8 w-auto" />
         )}
         <div className="mt-2 max-w-full overflow-hidden">
           <OrganizationSwitcher

@@ -9,7 +9,7 @@ export default function SiteFooter() {
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
         {/* Full logo (with tagline) shown larger here where it's legible. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-full.png" alt="SkirrNow — Marketing Momentum Masters" className="h-16 w-auto sm:h-20" />
+        <img src="/logo-full.png?v=2" alt="SkirrNow — Marketing Momentum Masters" className="h-16 w-auto sm:h-20" />
         <p className="text-sm text-slate-500">
           The autonomous AI ad agency.
         </p>

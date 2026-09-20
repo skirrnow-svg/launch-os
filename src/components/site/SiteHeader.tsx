@@ -16,7 +16,7 @@ export default function SiteHeader() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
         <Link href="/" className="flex items-center" aria-label="SkirrNow — home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="SkirrNow" className="h-9 w-auto sm:h-10" />
+          <img src="/logo.png?v=2" alt="SkirrNow" className="h-9 w-auto sm:h-10" />
         </Link>
         <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
           {nav.map((n) => (
