@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import FreeGenerator from "@/components/free/FreeGenerator";
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default function FreePage() {
+  const { userId } = auth();
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <SiteHeader />
@@ -20,10 +22,10 @@ export default function FreePage() {
         </h1>
         <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
           Our creative agent reads your landing page and writes three high-converting hooks plus an instant AI
-          marketing audit — free. Verify your email and it&apos;s yours in under a minute.
+          marketing audit — free. Sign up (no credit card) and your first two ads are yours in under a minute.
         </p>
         <div className="mt-10">
-          <FreeGenerator />
+          <FreeGenerator isSignedIn={!!userId} />
         </div>
       </section>
       <SiteFooter />

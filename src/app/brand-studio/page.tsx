@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { auth } from "@clerk/nextjs/server";
 import SiteHeader from "@/components/site/SiteHeader";
 import SiteFooter from "@/components/site/SiteFooter";
 import BrandStudio from "@/components/brand/BrandStudio";
@@ -10,6 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default function BrandStudioPage() {
+  const { userId } = auth();
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <SiteHeader />
@@ -19,12 +21,11 @@ export default function BrandStudioPage() {
           Make any image on-brand in seconds.
         </h1>
         <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-          Drop in a photo, add your logo, name, tagline and colors, and download a polished branded image —
-          free, instant, and entirely in your browser. Video branding and your saved brand kit come with a
-          free account.
+          Drop in a photo or video, add your logo, name, tagline and colors, and download a polished branded
+          result — free, instant, and entirely in your browser. Unlimited, no credit card — just a free account.
         </p>
         <div className="mt-10">
-          <BrandStudio />
+          <BrandStudio isSignedIn={!!userId} />
         </div>
       </section>
       <SiteFooter />

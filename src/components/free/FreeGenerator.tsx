@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-type Step = "start" | "code" | "working" | "done" | "error" | "paywall";
+type Step = "start" | "signup" | "working" | "done" | "error" | "paywall";
 
 type Report = {
   business?: { name?: string; what?: string };
@@ -22,14 +22,14 @@ const input =
 const label = "mb-1.5 block text-sm font-medium text-slate-700";
 const eyebrow = "font-mono text-xs uppercase tracking-widest text-accent";
 
-/** The free Product-to-Ad generator flow: URL + email → code → audit report. */
-export default function FreeGenerator() {
+/**
+ * The free Product-to-Ad generator: paste a URL → (free account, no credit
+ * card) → 3 viral hooks + an AI marketing audit. Each account gets 2 free ads,
+ * then a payment wall. A free signup is the gate — no email code.
+ */
+export default function FreeGenerator({ isSignedIn }: { isSignedIn: boolean }) {
   const [step, setStep] = useState<Step>("start");
   const [url, setUrl] = useState("");
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [token, setToken] = useState("");
-  const [leadId, setLeadId] = useState("");
   const [report, setReport] = useState<Report | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -37,49 +37,27 @@ export default function FreeGenerator() {
 
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
 
-  async function requestCode(e: FormEvent) {
+  async function generate(e: FormEvent) {
     e.preventDefault();
+    // Gate: a free account (no credit card) is required to generate.
+    if (!isSignedIn) { setStep("signup"); return; }
     setBusy(true);
     setError("");
-    try {
-      const res = await fetch("/api/public/free/code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Couldn't send your code.");
-      setToken(data.token);
-      setStep("code");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function verifyAndGenerate(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
+    setStep("working");
     try {
       const res = await fetch("/api/public/free/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code, token, url }),
+        body: JSON.stringify({ url }),
       });
       const data = await res.json();
-      // Email verified but this address used up its free ads → payment wall.
-      if (res.status === 402 && data.needsPayment) {
-        setStep("paywall");
-        return;
-      }
+      if (res.status === 401 && data.needsSignup) { setStep("signup"); return; }
+      if (res.status === 402 && data.needsPayment) { setStep("paywall"); return; }
       if (!res.ok) throw new Error(data.error || "Couldn't start your audit.");
-      setLeadId(data.lead_id);
-      setStep("working");
       startPolling(data.lead_id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
+      setStep("error");
     } finally {
       setBusy(false);
     }
@@ -108,65 +86,55 @@ export default function FreeGenerator() {
     }, 3000);
   }
 
-  // ---- Step: enter URL + email ------------------------------------------------
+  // ---- Step: paste your website ----------------------------------------------
   if (step === "start") {
     return (
-      <form onSubmit={requestCode} className={card}>
-        <p className={eyebrow}>Step 1 of 3 · Your business</p>
-        <h2 className="mt-2 font-display text-2xl font-bold text-slate-900">Paste your website</h2>
+      <form onSubmit={generate} className={card}>
+        <p className={eyebrow}>Paste your website</p>
+        <h2 className="mt-2 font-display text-2xl font-bold text-slate-900">Get your ad in a minute</h2>
         <p className="mt-2 text-sm text-slate-600">
           We&apos;ll read your landing page and write three viral hooks plus an AI marketing audit — free.
         </p>
         {error && <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-danger">{error}</p>}
-        <div className="mt-6 space-y-4">
-          <div>
-            <label className={label} htmlFor="fg-url">Website or Shopify URL</label>
-            <input
-              id="fg-url" className={input} value={url} onChange={(e) => setUrl(e.target.value)}
-              placeholder="yourbrand.com" inputMode="url" autoComplete="url" spellCheck={false} required
-            />
-          </div>
-          <div>
-            <label className={label} htmlFor="fg-email">Work email</label>
-            <input
-              id="fg-email" type="email" className={input} value={email} onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@company.com" autoComplete="email" inputMode="email" spellCheck={false} required
-            />
-            <p className="mt-1.5 text-xs text-slate-400">We send a 6-digit code to verify it&apos;s really you.</p>
-          </div>
+        <div className="mt-6">
+          <label className={label} htmlFor="fg-url">Website or Shopify URL</label>
+          <input
+            id="fg-url" className={input} value={url} onChange={(e) => setUrl(e.target.value)}
+            placeholder="yourbrand.com" inputMode="url" autoComplete="url" spellCheck={false} required
+          />
         </div>
         <button type="submit" disabled={busy} className="mt-6 w-full rounded bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
-          {busy ? "Sending code…" : "Email me a code →"}
+          {isSignedIn ? "Generate my ad →" : "Continue — free account →"}
         </button>
+        {!isSignedIn && (
+          <p className="mt-3 text-center text-xs text-slate-400">Free account, no credit card. Your first 2 ads are on us.</p>
+        )}
       </form>
     );
   }
 
-  // ---- Step: enter the emailed code ------------------------------------------
-  if (step === "code") {
+  // ---- Step: needs a free account --------------------------------------------
+  if (step === "signup") {
     return (
-      <form onSubmit={verifyAndGenerate} className={card}>
-        <p className={eyebrow}>Step 2 of 3 · Verify</p>
-        <h2 className="mt-2 font-display text-2xl font-bold text-slate-900">Enter your code</h2>
-        <p className="mt-2 text-sm text-slate-600">
-          We sent a 6-digit code to <span className="font-medium text-slate-800">{email}</span>. It expires in 10 minutes.
+      <div className={`${card} text-center`}>
+        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-blue-50 text-xl text-accent">✦</div>
+        <h2 className="font-display text-xl font-bold text-slate-900">Create your free account</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          No credit card — just a free account to keep your ads and audits in one place. Your first 2 Product-to-Ad
+          audits are free.
         </p>
-        {error && <p role="alert" className="mt-4 rounded bg-red-50 px-3 py-2 text-sm text-danger">{error}</p>}
-        <div className="mt-6">
-          <label className={label} htmlFor="fg-code">Verification code</label>
-          <input
-            id="fg-code" className={`${input} font-mono text-lg tracking-[0.4em]`} value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder="000000" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required
-          />
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <a href="/sign-up?redirect_url=/free" className="inline-block rounded bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover">
+            Sign up free →
+          </a>
+          <a href="/sign-in?redirect_url=/free" className="inline-block rounded border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+            I already have an account
+          </a>
         </div>
-        <button type="submit" disabled={busy || code.length < 6} className="mt-6 w-full rounded bg-accent px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:opacity-50">
-          {busy ? "Verifying…" : "Verify & generate my ad →"}
+        <button type="button" onClick={() => setStep("start")} className="mt-4 text-xs text-slate-400 hover:text-slate-600">
+          ← Back
         </button>
-        <button type="button" onClick={() => { setStep("start"); setCode(""); setError(""); }} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-600">
-          ← Use a different email or URL
-        </button>
-      </form>
+      </div>
     );
   }
 
@@ -177,9 +145,8 @@ export default function FreeGenerator() {
         <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-blue-50 text-xl text-accent">★</div>
         <h2 className="font-display text-xl font-bold text-slate-900">You&apos;ve used your 2 free ads</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
-          <span className="font-medium text-slate-800">{email}</span> has generated its 2 free Product-to-Ad audits.
-          Upgrade to a paid plan to generate unlimited ads, unlock full-resolution animated videos, and automate your
-          follow-up email sequence.
+          Your account has generated its 2 free Product-to-Ad audits. Upgrade to a paid plan to generate unlimited
+          ads, unlock full-resolution animated videos, and automate your follow-up email sequence.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <a href="/#pricing" className="inline-block rounded bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover">
@@ -213,7 +180,7 @@ export default function FreeGenerator() {
       <div className={`${card} text-center`}>
         <h2 className="font-display text-xl font-bold text-slate-900">That didn&apos;t work</h2>
         <p role="alert" className="mx-auto mt-2 max-w-md text-sm text-slate-600">{error}</p>
-        <button onClick={() => { setStep("start"); setError(""); setCode(""); }} className="mt-6 rounded border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+        <button onClick={() => { setStep("start"); setError(""); }} className="mt-6 rounded border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
           Start over
         </button>
       </div>
@@ -266,9 +233,9 @@ export default function FreeGenerator() {
           <a href="/#pricing" className="rounded bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-hover">
             See paid plans
           </a>
-          <a href="/get-started" className="rounded border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
-            Talk to us
-          </a>
+          <button type="button" onClick={() => { setReport(null); setUrl(""); setStep("start"); }} className="rounded border border-slate-300 px-5 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100">
+            Generate another
+          </button>
         </div>
       </div>
     </div>

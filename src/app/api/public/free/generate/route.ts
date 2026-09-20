@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { withErrors } from "@/lib/api";
-import { verifyCode } from "@/lib/free/verify";
 import { scrapeSite } from "@/lib/free/scrape";
 import { countFreeUses, FREE_AD_LIMIT } from "@/lib/free/entitlement";
 import { ingestLead } from "@/lib/leads";
@@ -8,40 +8,47 @@ import { ingestLead } from "@/lib/leads";
 export const runtime = "nodejs";
 
 /**
- * POST /api/public/free/generate — verify the email code, scrape the site, and
- * enqueue a free-generator lead. The runner then writes 3 viral hooks + an AI
+ * POST /api/public/free/generate — signed-in visitors only. Scrapes the site
+ * and enqueues a free-generator lead; the runner writes 3 viral hooks + an AI
  * marketing audit onto the lead (text only, 0 credits). The animated teaser is
- * NOT rendered here — it stays behind the phone-verified gate (docs/VISION.md),
- * so the free path never auto-spends Higgsfield credits.
+ * NOT rendered here — it stays behind the paid gate — so the free path never
+ * auto-spends Higgsfield credits.
  *
- * Body: { email, code, token, url }.  Returns: { ok, lead_id }.
+ * A free account (no credit card) is the gate: the visitor must be signed in,
+ * and each account gets FREE_AD_LIMIT free ads before the payment wall. Identity
+ * is the Clerk user's email, so the limit can't be gamed by changing a form
+ * field. Body: { url }.  Returns: { ok, lead_id }.
  */
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export const POST = withErrors<unknown>(async (request) => {
   const orgId = process.env.DEFAULT_LEAD_ORG_ID;
   if (!orgId) {
     return NextResponse.json({ error: "The free generator isn't configured." }, { status: 500 });
   }
 
-  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
-  const s = (k: string) => (typeof body[k] === "string" ? (body[k] as string).trim() : "");
-  const email = s("email");
-  const code = s("code");
-  const token = s("token");
-  const url = s("url");
+  // Gate: must have a free account (signed in). No credit card required.
+  const { userId } = auth();
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Create a free account to generate your ad.", needsSignup: true },
+      { status: 401 },
+    );
+  }
+  const user = await currentUser();
+  const email =
+    user?.primaryEmailAddress?.emailAddress ||
+    user?.emailAddresses?.[0]?.emailAddress ||
+    "";
+  if (!email) {
+    return NextResponse.json({ error: "Your account has no email on file." }, { status: 400 });
+  }
 
-  if (!email || !EMAIL_RE.test(email)) {
-    return NextResponse.json({ error: "Enter a valid email address." }, { status: 400 });
-  }
-  if (!verifyCode(email, code, token)) {
-    return NextResponse.json({ error: "That code is incorrect or has expired." }, { status: 400 });
-  }
+  const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+  const url = typeof body.url === "string" ? body.url.trim() : "";
   if (!url) {
     return NextResponse.json({ error: "Enter your website URL." }, { status: 400 });
   }
 
-  // Up to FREE_AD_LIMIT free ads per email, then a payment wall.
+  // Up to FREE_AD_LIMIT free ads per account, then a payment wall.
   if ((await countFreeUses(orgId, email, "free-generator")) >= FREE_AD_LIMIT) {
     return NextResponse.json(
       {

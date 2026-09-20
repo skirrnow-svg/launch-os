@@ -177,7 +177,7 @@ function useImageFromFile() {
 const inputCls =
   "w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent";
 
-export default function BrandStudio() {
+export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
   const logo = useImageFromFile();
   const [brandName, setBrandName] = useState("SkirrNow");
   const [tagline, setTagline] = useState("AI Agentic Marketing Platform");
@@ -199,17 +199,10 @@ export default function BrandStudio() {
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
 
-  // Branding is unlimited and free. We capture the email once (lead-gen), then
-  // unlock unlimited downloads on this browser — no per-use limit, no paywall.
-  const [unlocked, setUnlocked] = useState(false);
-  const [gate, setGate] = useState<"closed" | "email" | "code">("closed");
-  const [gEmail, setGEmail] = useState("");
-  const [gCode, setGCode] = useState("");
-  const [gToken, setGToken] = useState("");
-  const [gBusy, setGBusy] = useState(false);
-  const [gErr, setGErr] = useState("");
+  // Branding is unlimited and free — the only gate is a free account (no credit
+  // card). Signed in → unlimited downloads. Signed out → a sign-up prompt.
+  const [needSignup, setNeedSignup] = useState(false);
   const pendingRef = useRef<"image" | "video" | null>(null);
-  useEffect(() => { try { setUnlocked(localStorage.getItem("sn_brand_unlocked") === "1"); } catch { /* private mode */ } }, []);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -331,38 +324,9 @@ export default function BrandStudio() {
   }
   function requestDownload(kind: "image" | "video") {
     pendingRef.current = kind;
-    if (unlocked) { runPending(); return; }
-    setGErr(""); setGate("email");
-  }
-  async function sendGateCode() {
-    setGErr("");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(gEmail.trim())) { setGErr("Enter a valid email address."); return; }
-    setGBusy(true);
-    try {
-      const r = await fetch("/api/public/free/code", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: gEmail.trim() }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Could not send the code.");
-      setGToken(d.token); setGate("code");
-    } catch (e) { setGErr(e instanceof Error ? e.message : "Could not send the code."); }
-    finally { setGBusy(false); }
-  }
-  async function verifyGate() {
-    setGErr(""); setGBusy(true);
-    try {
-      const r = await fetch("/api/public/brand/lead", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: gEmail.trim(), code: gCode.trim(), token: gToken, media: pendingRef.current ?? "image" }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "That code is incorrect or has expired.");
-      // Email captured — unlock unlimited free downloads on this browser.
-      try { localStorage.setItem("sn_brand_unlocked", "1"); } catch { /* private mode */ }
-      setUnlocked(true); setGate("closed");
-      runPending();
-    } catch (e) { setGErr(e instanceof Error ? e.message : "That code is incorrect."); }
-    finally { setGBusy(false); }
+    // Gate: a free account (no credit card) unlocks unlimited downloads.
+    if (isSignedIn) { runPending(); return; }
+    setNeedSignup(true);
   }
 
   return (
@@ -444,37 +408,24 @@ export default function BrandStudio() {
           </button>
         )}
 
-        {gate !== "closed" && (
+        {needSignup && !isSignedIn && (
           <div className="rounded-lg border border-accent bg-accent/5 p-4">
-            <div className="text-sm font-semibold text-slate-900">One step — verify your email for unlimited free downloads</div>
-            {gate === "email" ? (
-              <div className="mt-2 space-y-2">
-                <input type="email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} placeholder="you@company.com" className={inputCls} />
-                <div className="flex gap-2">
-                  <button type="button" onClick={sendGateCode} disabled={gBusy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">{gBusy ? "Sending…" : "Email me a code"}</button>
-                  <button type="button" onClick={() => setGate("closed")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Cancel</button>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-2 space-y-2">
-                <p className="text-xs text-slate-500">We emailed a 6-digit code to <b>{gEmail}</b>.</p>
-                <input inputMode="numeric" value={gCode} onChange={(e) => setGCode(e.target.value)} placeholder="123456" className={inputCls} />
-                <div className="flex gap-2">
-                  <button type="button" onClick={verifyGate} disabled={gBusy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">{gBusy ? "Verifying…" : "Verify & download"}</button>
-                  <button type="button" onClick={() => setGate("email")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Change email</button>
-                </div>
-              </div>
-            )}
-            {gErr && <p className="mt-2 text-xs text-rose-600">{gErr}</p>}
-            <p className="mt-2 text-[11px] text-slate-400">Free &amp; unlimited — we&apos;ll never spam you. Phone verification is coming for extra security.</p>
+            <div className="text-sm font-semibold text-slate-900">Create your free account to download</div>
+            <p className="mt-1 text-xs text-slate-600">
+              No credit card — a free account gets you unlimited branded images and videos.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/sign-up?redirect_url=/brand-studio" className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">Sign up free →</Link>
+              <Link href="/sign-in?redirect_url=/brand-studio" className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">I have an account</Link>
+            </div>
           </div>
         )}
-        {unlocked && <p className="text-[11px] font-semibold text-emerald-700">✓ Email verified — unlimited free downloads unlocked</p>}
+        {isSignedIn && <p className="text-[11px] font-semibold text-emerald-700">✓ Signed in — unlimited free downloads</p>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">Want more?</span> Save this brand kit once and it auto-applies
           across SkirrNow — plus generate full AI ads.{" "}
-          <Link href="/get-started" className="font-semibold text-accent hover:underline">Create a free account →</Link>
+          <Link href="/get-started" className="font-semibold text-accent hover:underline">See what a free account unlocks →</Link>
         </div>
       </div>
 
