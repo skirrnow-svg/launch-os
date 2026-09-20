@@ -1,7 +1,10 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 
 /** Public marketing header. Anchors resolve to sections on the home page. */
 export default function SiteHeader() {
+  const { userId } = auth();
+  const signedIn = !!userId;
   const nav = [
     { href: "/#how", label: "How it works" },
     { href: "/#features", label: "Features" },
@@ -23,15 +26,26 @@ export default function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-3">
-          <Link href="/sign-in" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 sm:block">
-            Sign in
-          </Link>
-          <Link
-            href="/get-started"
-            className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-          >
-            Get started
-          </Link>
+          {signedIn ? (
+            <Link
+              href="/dashboard"
+              className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+            >
+              My dashboard →
+            </Link>
+          ) : (
+            <>
+              <Link href="/sign-in" className="hidden text-sm font-medium text-slate-600 hover:text-slate-900 sm:block">
+                Sign in
+              </Link>
+              <Link
+                href="/get-started"
+                className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
+              >
+                Get started
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>

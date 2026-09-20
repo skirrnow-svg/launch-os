@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { auth } from "@clerk/nextjs/server";
 
 /** Public marketing footer. */
 export default function SiteFooter() {
+  const { userId } = auth();
   return (
     <footer className="border-t border-slate-200 bg-white">
       <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
@@ -16,7 +18,7 @@ export default function SiteFooter() {
           <Link href="/#pricing" className="hover:text-slate-900">Pricing</Link>
           <Link href="/get-started" className="hover:text-slate-900">Get started</Link>
           <Link href="/contact" className="hover:text-slate-900">Contact</Link>
-          <Link href="/sign-in" className="hover:text-slate-900">Sign in</Link>
+          <Link href={userId ? "/dashboard" : "/sign-in"} className="hover:text-slate-900">{userId ? "Dashboard" : "Sign in"}</Link>
         </div>
       </div>
       <div className="border-t border-slate-100">
