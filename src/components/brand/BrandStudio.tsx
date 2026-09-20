@@ -199,7 +199,10 @@ export default function BrandStudio() {
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
 
-  const [unlocked, setUnlocked] = useState(false);
+  // One free branded download per email. `claimed` = this browser already used
+  // its free run (server enforces the same limit by email regardless).
+  const [claimed, setClaimed] = useState(false);
+  const [needsAccount, setNeedsAccount] = useState(false);
   const [gate, setGate] = useState<"closed" | "email" | "code">("closed");
   const [gEmail, setGEmail] = useState("");
   const [gCode, setGCode] = useState("");
@@ -207,7 +210,7 @@ export default function BrandStudio() {
   const [gBusy, setGBusy] = useState(false);
   const [gErr, setGErr] = useState("");
   const pendingRef = useRef<"image" | "video" | null>(null);
-  useEffect(() => { try { setUnlocked(localStorage.getItem("sn_brand_unlocked") === "1"); } catch { /* private mode */ } }, []);
+  useEffect(() => { try { setClaimed(Boolean(localStorage.getItem("sn_brand_claimed"))); } catch { /* private mode */ } }, []);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -329,8 +332,9 @@ export default function BrandStudio() {
   }
   function requestDownload(kind: "image" | "video") {
     pendingRef.current = kind;
-    if (unlocked) { runPending(); return; }
-    setGErr(""); setGate("email");
+    // Already used the free download on this browser → straight to sign-up.
+    if (claimed) { setNeedsAccount(true); return; }
+    setGErr(""); setNeedsAccount(false); setGate("email");
   }
   async function sendGateCode() {
     setGErr("");
@@ -354,9 +358,16 @@ export default function BrandStudio() {
         body: JSON.stringify({ email: gEmail.trim(), code: gCode.trim(), token: gToken, media: pendingRef.current ?? "image" }),
       });
       const d = await r.json();
+      // Email verified but the free run is already spent → require an account.
+      if (r.status === 403 && d.needsAccount) {
+        try { localStorage.setItem("sn_brand_claimed", gEmail.trim().toLowerCase()); } catch { /* private mode */ }
+        setClaimed(true); setGate("closed"); setNeedsAccount(true);
+        return;
+      }
       if (!r.ok) throw new Error(d.error || "That code is incorrect or has expired.");
-      try { localStorage.setItem("sn_brand_unlocked", "1"); } catch { /* private mode */ }
-      setUnlocked(true); setGate("closed");
+      // First free download claimed — record it and run the pending download.
+      try { localStorage.setItem("sn_brand_claimed", gEmail.trim().toLowerCase()); } catch { /* private mode */ }
+      setClaimed(true); setGate("closed");
       runPending();
     } catch (e) { setGErr(e instanceof Error ? e.message : "That code is incorrect."); }
     finally { setGBusy(false); }
@@ -443,7 +454,7 @@ export default function BrandStudio() {
 
         {gate !== "closed" && (
           <div className="rounded-lg border border-accent bg-accent/5 p-4">
-            <div className="text-sm font-semibold text-slate-900">One step — verify your email to download free</div>
+            <div className="text-sm font-semibold text-slate-900">One step — verify your email for your free download</div>
             {gate === "email" ? (
               <div className="mt-2 space-y-2">
                 <input type="email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} placeholder="you@company.com" className={inputCls} />
@@ -463,10 +474,21 @@ export default function BrandStudio() {
               </div>
             )}
             {gErr && <p className="mt-2 text-xs text-rose-600">{gErr}</p>}
-            <p className="mt-2 text-[11px] text-slate-400">Free — we&apos;ll never spam you. Phone verification is coming for extra security.</p>
+            <p className="mt-2 text-[11px] text-slate-400">One free branded download per email. Phone verification is coming for extra security.</p>
           </div>
         )}
-        {unlocked && <p className="text-[11px] font-semibold text-emerald-700">✓ Email verified — downloads unlocked</p>}
+        {needsAccount && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">You&apos;ve used your free branded download 🎉</div>
+            <p className="mt-1 text-xs text-slate-600">
+              Create a free account to keep branding unlimited images and videos — plus save your brand kit so it
+              auto-applies every time.
+            </p>
+            <Link href="/sign-up" className="mt-3 inline-block rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">
+              Create a free account →
+            </Link>
+          </div>
+        )}
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">Want more?</span> Save this brand kit once and it auto-applies

@@ -13,7 +13,11 @@ import net from "node:net";
  */
 const MAX_BYTES = 1_500_000;
 const TIMEOUT_MS = 9000;
-const MAX_HOPS = 3;
+// Real sites routinely chain http→https, apex→www and trailing-slash
+// redirects, sometimes 4–5 hops before the final page. Keep the SSRF re-check
+// on every hop (assertPublicHost runs each loop) but allow enough hops that a
+// legitimate site isn't rejected as "redirected too many times".
+const MAX_HOPS = 8;
 
 export type ScrapeResult = { url: string; title: string; summary: string };
 

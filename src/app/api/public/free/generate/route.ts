@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { withErrors } from "@/lib/api";
 import { verifyCode } from "@/lib/free/verify";
 import { scrapeSite } from "@/lib/free/scrape";
+import { hasClaimedFree } from "@/lib/free/entitlement";
 import { ingestLead } from "@/lib/leads";
 
 export const runtime = "nodejs";
@@ -38,6 +39,17 @@ export const POST = withErrors<unknown>(async (request) => {
   }
   if (!url) {
     return NextResponse.json({ error: "Enter your website URL." }, { status: 400 });
+  }
+
+  // One free audit per email. A second attempt with the same email must sign up.
+  if (await hasClaimedFree(orgId, email, "free-generator")) {
+    return NextResponse.json(
+      {
+        error: "You've already used your free audit. Create a free account to run more.",
+        needsAccount: true,
+      },
+      { status: 403 },
+    );
   }
 
   // SSRF-guarded scrape (throws a friendly message on bad/unreachable URLs).

@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-type Step = "start" | "code" | "working" | "done" | "error";
+type Step = "start" | "code" | "working" | "done" | "error" | "account";
 
 type Report = {
   business?: { name?: string; what?: string };
@@ -69,6 +69,11 @@ export default function FreeGenerator() {
         body: JSON.stringify({ email, code, token, url }),
       });
       const data = await res.json();
+      // Email verified but this address already used its one free audit.
+      if (res.status === 403 && data.needsAccount) {
+        setStep("account");
+        return;
+      }
       if (!res.ok) throw new Error(data.error || "Couldn't start your audit.");
       setLeadId(data.lead_id);
       setStep("working");
@@ -162,6 +167,23 @@ export default function FreeGenerator() {
           ← Use a different email or URL
         </button>
       </form>
+    );
+  }
+
+  // ---- Step: free run already used -> create an account -----------------------
+  if (step === "account") {
+    return (
+      <div className={`${card} text-center`}>
+        <div className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-full bg-blue-50 text-xl text-accent">✓</div>
+        <h2 className="font-display text-xl font-bold text-slate-900">You&apos;ve used your free audit</h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-slate-600">
+          <span className="font-medium text-slate-800">{email}</span> has already run one free Product-to-Ad audit.
+          Create a free account to run more audits, generate full AI ads, and automate your follow-up email sequence.
+        </p>
+        <a href="/sign-up" className="mt-6 inline-block rounded bg-accent px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent-hover">
+          Create a free account →
+        </a>
+      </div>
     );
   }
 
