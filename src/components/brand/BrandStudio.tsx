@@ -295,11 +295,25 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
       const { fetchFile, toBlobURL } = await import("@ffmpeg/util");
       const ffmpeg = new FFmpeg();
       ffmpeg.on("progress", ({ progress }) => setPct(Math.min(99, Math.round(progress * 100))));
-      const baseURL = "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd";
-      await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, "text/javascript"),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, "application/wasm"),
-      });
+      // Load the ~32 MB encoder core: CDN first, self-hosted copy as redundancy
+      // if a network/firewall blocks the CDN (same-origin /ffmpeg is served with
+      // the app, so it works wherever the site itself loads).
+      const CORE_SOURCES = [
+        "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd", // primary CDN
+        "/ffmpeg",                                        // self-hosted fallback
+      ];
+      let coreLoaded = false;
+      let coreErr: unknown;
+      for (const base of CORE_SOURCES) {
+        try {
+          const coreURL = await toBlobURL(`${base}/ffmpeg-core.js`, "text/javascript");
+          const wasmURL = await toBlobURL(`${base}/ffmpeg-core.wasm`, "application/wasm");
+          await ffmpeg.load({ coreURL, wasmURL });
+          coreLoaded = true;
+          break;
+        } catch (e) { coreErr = e; }
+      }
+      if (!coreLoaded) throw coreErr instanceof Error ? coreErr : new Error("Could not load the video encoder.");
       const inName = /\.webm$/i.test(videoFile.name) ? "in.webm" : "in.mp4";
       await ffmpeg.writeFile(inName, await fetchFile(videoFile));
       await ffmpeg.writeFile("ovl.png", await fetchFile(overlayUrl));
