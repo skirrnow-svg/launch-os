@@ -14,9 +14,9 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3.5">
-        <Link href="/" className="flex items-center gap-2 font-extrabold tracking-tight text-slate-900">
-          <span className="grid h-7 w-7 place-items-center rounded bg-accent text-sm font-black text-white">S</span>
-          <span className="text-lg">SkirrNow</span>
+        <Link href="/" className="flex items-center" aria-label="SkirrNow — home">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="SkirrNow" className="h-9 w-auto sm:h-10" />
         </Link>
         <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
           {nav.map((n) => (
