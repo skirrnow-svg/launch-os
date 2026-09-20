@@ -206,7 +206,7 @@ export default async function HomePage() {
             Meet the agents
           </Link>
         </div>
-        <p className="mt-4 font-mono text-xs uppercase tracking-wider text-slate-400">
+        <p className="mt-4 font-mono text-xs uppercase tracking-wider text-slate-500">
           Free audit · Verify email + phone · No card · Human approval before anything ships
         </p>
       </section>
@@ -222,7 +222,12 @@ export default async function HomePage() {
             {[
               {
                 href: "/free",
-                emoji: "🎬",
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-7 w-7">
+                    <path d="M5 3v4M3 5h4M6 17v4M4 19h4" />
+                    <path d="M13 3.5 15.2 9 21 11l-5.8 2L13 18.5 10.8 13 5 11l5.8-2z" />
+                  </svg>
+                ),
                 tag: "Free · Product-to-Ad",
                 title: "Product-to-Ad Generator",
                 blurb: "Paste your website → three viral hooks, an instant AI marketing audit, and a short animated ad teaser.",
@@ -230,7 +235,13 @@ export default async function HomePage() {
               },
               {
                 href: "/brand-studio",
-                emoji: "🎨",
+                icon: (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="h-7 w-7">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.6" />
+                    <path d="m21 15-4.5-4.5L5 21" />
+                  </svg>
+                ),
                 tag: "Free · Brand Studio",
                 title: "Brand any image or video",
                 blurb: "Drop in a photo or clip → stamp it on-brand with your logo, name, tagline and colors in seconds. No AI credits.",
@@ -242,7 +253,7 @@ export default async function HomePage() {
                 href={h.href}
                 className="group flex min-w-[290px] max-w-[330px] snap-start flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-accent"
               >
-                <div className="text-3xl">{h.emoji}</div>
+                <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent/10 text-accent">{h.icon}</div>
                 <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-accent">{h.tag}</p>
                 <div className="mt-1 font-display text-lg font-bold text-slate-900">{h.title}</div>
                 <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{h.blurb}</p>
@@ -250,7 +261,7 @@ export default async function HomePage() {
               </Link>
             ))}
           </div>
-          <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-slate-400">
+          <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-slate-500">
             More free tools coming — scroll →
           </p>
         </div>
@@ -434,7 +445,9 @@ export default async function HomePage() {
               <ul className="mt-5 flex flex-1 flex-col gap-2.5 text-sm text-slate-600">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <span className="mt-0.5 font-bold text-accent">✓</span>
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-accent">
+                      <path d="m4 10.5 4 4 8-9" />
+                    </svg>
                     {f}
                   </li>
                 ))}
