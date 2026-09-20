@@ -63,7 +63,9 @@ function videoGenParams(req, imageDataUrl, assetId) {
   const arReq = req.aspect_ratio || req.aspectRatio;
   const ar = AR.includes(arReq) ? arReq : "16:9";
   const mode = req.mode === "i2v" ? "i2v" : "t2v";
-  const model = typeof req.model === "string" && req.model ? req.model : "seedance_2_5";
+  // Default to seedance_2_0 (works on the Starter plan). seedance_2_5 needs a
+  // Pro/Ultimate Higgsfield plan, so only use it when the enqueuer requested it.
+  const model = typeof req.model === "string" && req.model ? req.model : "seedance_2_0";
   const args = ["--resolution", res, "--duration", String(dur), "--aspect_ratio", ar, "--mode", mode];
   let imagePath = null;
   if (mode === "i2v" && typeof imageDataUrl === "string") {

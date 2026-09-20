@@ -151,8 +151,16 @@ export const POST = withErrors(async (request: Request) => {
       metadata: {
         source: "prompt-builder",
         negative,
-        // Runner reads `requested` to emit the Higgsfield CLI flags.
-        requested: { model: "seedance_2_5", resolution, duration, aspectRatio, mode },
+        // Runner reads `requested` to emit the Higgsfield CLI flags. Model is
+        // env-overridable: default seedance_2_0 works on the Starter plan;
+        // set HIGGSFIELD_VIDEO_MODEL=seedance_2_5 once on a Pro/Ultimate plan.
+        requested: {
+          model: process.env.HIGGSFIELD_VIDEO_MODEL || "seedance_2_0",
+          resolution,
+          duration,
+          aspectRatio,
+          mode,
+        },
         ...(mode === "i2v" ? { imageDataUrl: validImage } : {}),
       },
     },
