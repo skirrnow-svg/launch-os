@@ -2,11 +2,16 @@
  * Resend email client. Sends transactional + campaign email via the Resend REST
  * API (no SDK dependency — a plain fetch, which runs fine on the Node host).
  *
- * Requires RESEND_API_KEY. The default From address falls back to Resend's
- * shared test sender (onboarding@resend.dev), which ONLY delivers to the Resend
- * account owner until you verify a sending domain and set MAIL_FROM to an
- * address on it (e.g. launch@skirrnow.app). Webhooks land at /api/webhooks/resend.
+ * Requires RESEND_API_KEY. Every app email — verification codes, lead delivery,
+ * and any future transactional/campaign mail — flows through here, so Resend is
+ * the single global email path. The default From is our verified skirrnow.com
+ * domain sender, which delivers to ANY recipient; set MAIL_FROM to override it.
+ * (Resend's shared onboarding@resend.dev only delivers to the account owner, so
+ * we never fall back to it.) Webhooks land at /api/webhooks/resend.
  */
+
+/** Verified sending domain address — delivers to any recipient. */
+const DEFAULT_FROM = "SkirrNow <skirrnow.agent@skirrnow.com>";
 
 export interface SendEmailParams {
   from?: string;
@@ -15,9 +20,9 @@ export interface SendEmailParams {
   html: string;
 }
 
-/** Default sender: MAIL_FROM if set, else Resend's test sender. */
+/** Default sender: MAIL_FROM if set, else our verified skirrnow.com domain. */
 export function defaultFrom(): string {
-  return process.env.MAIL_FROM?.trim() || "SkirrNow <onboarding@resend.dev>";
+  return process.env.MAIL_FROM?.trim() || DEFAULT_FROM;
 }
 
 export async function sendEmail(params: SendEmailParams): Promise<{ id: string }> {
