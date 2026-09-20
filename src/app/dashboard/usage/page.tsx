@@ -11,7 +11,8 @@ type Budget = { cap: number | null; used: number; remaining: number | null; even
 type Event = { id: string; createdAt: string; provider: string; kind: string; model: string | null; credits: number; tokens: number; estimated: boolean; status: string };
 type Plan = { slug: string | null; name: string; status: string; provider: string };
 type PeriodInfo = { start: string; end: string; label: string };
-type Data = { plan: Plan; period: PeriodInfo; credits: Budget; claude: Budget; events: Event[] };
+type FreeAds = { used: number; limit: number; remaining: number };
+type Data = { plan: Plan; period: PeriodInfo; credits: Budget; claude: Budget; events: Event[]; freeAds: FreeAds | null };
 
 const SRC_NOTE: Record<string, string> = { plan: "from plan", free: "free tier", override: "custom cap" };
 
@@ -67,8 +68,26 @@ export default function UsagePage() {
           <li>• {data.claude.cap == null ? "Unlimited" : compact(data.claude.cap)} SkirrNow AI tokens for copy &amp; audits this cycle</li>
           <li>• {data.credits.cap == null ? "Unlimited" : num(data.credits.cap)} Graphics, Video &amp; Web credits this cycle</li>
           <li>• Brand Studio — brand unlimited images &amp; videos, always free</li>
-          <li>• 2 free Product-to-Ad audits{data.claude.source === "free" ? ", then upgrade for more" : ""}</li>
+          {data.freeAds ? (
+            <li className="flex items-center gap-2">
+              <span>
+                • {data.freeAds.limit} free Product-to-Ad audits —{" "}
+                <span className="font-semibold text-slate-900">{data.freeAds.remaining} left</span>{" "}
+                ({data.freeAds.used} of {data.freeAds.limit} used){data.freeAds.remaining === 0 ? ", upgrade for more" : ""}
+              </span>
+            </li>
+          ) : (
+            <li>• 2 free Product-to-Ad audits, then upgrade for more</li>
+          )}
         </ul>
+        {data.freeAds && (
+          <div className="mt-2 h-1.5 w-full max-w-xs overflow-hidden rounded bg-emerald-100">
+            <div
+              className="h-full rounded bg-emerald-500"
+              style={{ width: `${Math.min(100, Math.round((data.freeAds.used / Math.max(1, data.freeAds.limit)) * 100))}%` }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Budgets */}

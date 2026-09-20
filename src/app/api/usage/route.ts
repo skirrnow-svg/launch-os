@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
+import { currentUser } from "@clerk/nextjs/server";
 import { getContext } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { withErrors } from "@/lib/api";
 import { getEntitlement, periodUsage } from "@/lib/billing/entitlements";
+import { countFreeUses, FREE_AD_LIMIT } from "@/lib/free/entitlement";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,7 +35,20 @@ export const GET = withErrors<unknown>(async () => {
   const creditCap = ent.credits.cap;
   const tokenCap = ent.claude.cap;
 
+  // Free Product-to-Ad audits used by this account's email (leads live in the
+  // shared lead org, keyed by email — see /api/public/free/generate).
+  const user = await currentUser();
+  const email =
+    user?.primaryEmailAddress?.emailAddress || user?.emailAddresses?.[0]?.emailAddress || "";
+  const leadOrg = process.env.DEFAULT_LEAD_ORG_ID;
+  let freeAds: { used: number; limit: number; remaining: number } | null = null;
+  if (email && leadOrg) {
+    const usedAds = await countFreeUses(leadOrg, email, "free-generator");
+    freeAds = { used: usedAds, limit: FREE_AD_LIMIT, remaining: Math.max(0, FREE_AD_LIMIT - usedAds) };
+  }
+
   return NextResponse.json({
+    freeAds,
     plan: { slug: ent.planSlug, name: ent.planName, status: ent.status, provider: ent.provider },
     period: { start: ent.period.start.toISOString(), end: ent.period.end.toISOString(), label: ent.periodLabel },
     credits: {
