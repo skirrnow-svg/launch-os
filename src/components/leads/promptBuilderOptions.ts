@@ -144,6 +144,230 @@ export const PROMPT_BUILDER_OPTIONS = {
 export const FRAMING_COUNT = 7;
 
 /* ------------------------------------------------------------------ *
+ * Cascading domain taxonomy
+ * ------------------------------------------------------------------ *
+ * Selecting a subject category filters + populates every downstream field
+ * (actors, environments, lighting, actions, materials, hero suggestions) so the
+ * whole form stays coherent for that domain. Camera framing/movement remain
+ * global (they are scale-scoped, not domain-scoped — see FRAMING_SCOPE).
+ */
+export type SubjectCategory =
+  | "saas_digital"       // SaaS, Apps, Platforms, AI Tools
+  | "b2b_service"        // Agency, Consulting, Logistics, Finance
+  | "physical_product"   // Footwear, Wearables, Hardware, Consumer Tech
+  | "mobility_vehicle"   // Motorcycles, Cars, EV, Mobility Gear
+  | "food_beverage";     // Drinks, Culinary, Packaged Goods
+
+export interface CategoryPreset {
+  label: string;
+  defaultStyle: string;
+  heroPlaceholder: string;
+  sampleSubjects: string[];
+  actors: string[];
+  environments: string[];
+  lighting: string[];
+  actions: string[];
+  materials: string[];
+}
+
+export const CATEGORY_TAXONOMY: Record<SubjectCategory, CategoryPreset> = {
+  saas_digital: {
+    label: "Software & Digital Platforms",
+    defaultStyle: "App / screen demo",
+    heroPlaceholder: "e.g., AI Analytics Dashboard, FinTech Payment App, SaaS Launch",
+    sampleSubjects: [
+      "AI marketing automation dashboard",
+      "Real-time pipeline analytics portal",
+      "Mobile contactless payment app",
+      "Multi-tenant cloud architecture console",
+    ],
+    actors: [
+      "Senior software engineer typing with focused posture",
+      "Product manager presenting dashboard on laptop",
+      "Modern remote worker interacting with tablet",
+      "Focused UX designer navigating interface",
+    ],
+    environments: [
+      "High-tech dark-mode workstation with dual monitors",
+      "Minimalist sunlit glass startup office",
+      "Clean architectural co-working lounge",
+      "Sleek server room with subtle rack LED glows",
+    ],
+    lighting: [
+      "Subtle cool blue screen bounce illumination",
+      "Soft diffused Scandinavian ambient daylight",
+      "Moody low-key cinematic desk lamp lighting",
+      "Vibrant cyber-neon edge rim accents",
+    ],
+    actions: [
+      "Fingers smoothly gliding across trackpad, expanding dynamic data charts with 60fps fluid transitions",
+      "Clicking launch button with instantaneous live graph rendering and positive status notification",
+      "Seamless viewport camera pan across interactive 3D metrics dashboard with zero latency",
+      "Swiping through mobile app screens with responsive micro-haptic UI animations",
+    ],
+    materials: [
+      "High-luminance crisp OLED screen glass",
+      "Matte anti-glare display surface",
+      "Brushed anodized dark aluminum laptop chassis",
+      "Frosted translucent UI glass panels and neon indicator glows",
+    ],
+  },
+
+  b2b_service: {
+    label: "B2B & Professional Services",
+    defaultStyle: "Product hero",
+    heroPlaceholder: "e.g., Marketing Agency Pipeline, Supply Chain Audit, Legal Firm",
+    sampleSubjects: [
+      "Lead generation & automated outbound campaign",
+      "Enterprise logistics fulfillment network",
+      "Strategic GTM launch advisory",
+      "Corporate governance & compliance audit",
+    ],
+    actors: [
+      "Executive growth consultant reviewing quarterly metrics",
+      "Account strategist analyzing qualified lead profiles",
+      "Commercial solution architect structuring proposals",
+      "B2B sales director closing pipeline contracts",
+    ],
+    environments: [
+      "High-floor executive boardroom with skyline glass walls",
+      "Contemporary architectural agency studio",
+      "Sun-drenched enterprise meeting suite",
+      "Modern collaborative open-plan agency workspace",
+    ],
+    lighting: [
+      "Polished high-key corporate commercial daylight",
+      "Warm golden morning sunlight through floor-to-ceiling windows",
+      "Clean architectural balanced studio illumination",
+    ],
+    actions: [
+      "Reviewing verified lead cards updating in real-time with green approval status indicators",
+      "Reviewing enterprise pipeline charts showing surging inbound customer acquisition",
+      "Annotating digital strategy roadmaps with confident, deliberate stylus strokes",
+    ],
+    materials: [
+      "Polished architectural glass and steel framing",
+      "Matte executive leather portfolios and premium stationery",
+      "High-resolution tablet displays and tactile aluminum styluses",
+    ],
+  },
+
+  physical_product: {
+    label: "Physical Products & Hardware",
+    defaultStyle: "Product hero",
+    heroPlaceholder: "e.g., Chronograph Watch, Wireless Headphones, Ergonomic Chair",
+    sampleSubjects: [
+      "Luxury automatic chronograph wristwatch",
+      "High-fidelity wireless over-ear headphones",
+      "Waterproof technical trail-running shoes",
+      "Minimalist aerospace-grade camera drone",
+    ],
+    actors: [
+      "Just the product — no people",
+      "Artisanal craftsman holding product with steady grip",
+      "Focused industrial designer evaluating tolerances",
+    ],
+    environments: [
+      "Minimalist raw concrete architectural gallery",
+      "Warm Scandinavian oak-wood living space",
+      "Matte black commercial tabletop studio",
+    ],
+    lighting: [
+      "High-contrast commercial studio edge rim lighting",
+      "Soft overhead diffused lightbox illumination",
+      "Directional spotlight creating sculpted shadow falls",
+    ],
+    actions: [
+      "Slow 45-degree orbital camera rotation highlighting seamless seam tolerances",
+      "Smooth push-in dolly shot revealing brushed metallic grain and bevel cuts",
+      "Dropping onto a textured stone pedestal with subtle resting bounce and contact shadow",
+    ],
+    materials: [
+      "Brushed aerospace anodized aluminum",
+      "Hand-finished vegetable-tanned leather",
+      "Frosted tempered glass with polished bevels",
+      "Precision-machined stainless steel dials",
+    ],
+  },
+
+  mobility_vehicle: {
+    label: "Mobility, Vehicles & Gear",
+    defaultStyle: "Rider & vehicle",
+    heroPlaceholder: "e.g., Adventure Touring Boots, Dual-Sport Motorcycle, Electric Supercar",
+    sampleSubjects: [
+      "Adventure touring motorcycle boots",
+      "Dual-sport adventure motorcycle",
+      "Aerodynamic electric performance vehicle",
+      "Carbon-fiber full-face helmet",
+    ],
+    actors: [
+      "Experienced adventure motorcycle rider",
+      "Focused urban commuter in technical rainshell",
+      "High-performance track driver",
+    ],
+    environments: [
+      "Wet coastal tarmac road at golden hour",
+      "Misty high-altitude alpine switchback road",
+      "Sun-drenched desert canyon off-road trail",
+      "Rain-slicked neon metropolitan street at dusk",
+    ],
+    lighting: [
+      "Warm golden-hour sunlight with dramatic lens flares",
+      "Moody cinematic anamorphic blue-hour tones",
+      "High-contrast commercial studio edge rim lighting",
+    ],
+    actions: [
+      "Rider steps firmly onto motorcycle footpeg with authentic weight transfer as suspension settles",
+      "Heavy boot tread impacting wet gravel, displacing fine loose aggregate naturally",
+      "Vehicle carving through wet asphalt corner with authentic tire grip and spray",
+    ],
+    materials: [
+      "Matte rugged technical rubber and molded armor",
+      "Glossy twill carbon-fiber composite",
+      "Ballistic waterproof Cordura fabric weave",
+      "Micro water droplets, condensation, and rain splashes",
+    ],
+  },
+
+  food_beverage: {
+    label: "Food, Drink & Culinary",
+    defaultStyle: "Food & drink",
+    heroPlaceholder: "e.g., Cold Brew Coffee, Artisanal Burger, Espresso Machine",
+    sampleSubjects: [
+      "Artisanal cold-brew bottle with condensation",
+      "Commercial espresso group head pulling a shot",
+      "Stainless steel gooseneck pour-over kettle",
+      "Hand-tossed sourdough pizza in brick oven",
+    ],
+    actors: [
+      "Just the product — no people",
+      "Artisanal specialty barista",
+      "Professional culinary chef",
+    ],
+    environments: [
+      "Sunlit boutique cafe with exposed brickwork",
+      "Warm commercial rustic kitchen counter",
+      "Dark moody cocktail bar with warm backlights",
+    ],
+    lighting: [
+      "Warm morning backlight creating golden translucent glow",
+      "Soft natural window daylight with deep rich shadows",
+      "Low-key dramatic amber rim illumination",
+    ],
+    actions: [
+      "Pouring liquid in a steady laminar stream with rising hot steam plumes",
+      "Cold condensation beads rolling slowly down chilled frosted glass",
+      "Espresso pulling with thick golden crema swirling into a warm ceramic cup",
+    ],
+    materials: [
+      "Chilled frosted glass with running condensation drops",
+      "Polished mirror chrome and warm brass fixtures",
+      "Warm ceramic glaze and coarse reclaimed wood surfaces",
+    ],
+  },
+};
+
+/* ------------------------------------------------------------------ *
  * Scale / optical constraint model
  * ------------------------------------------------------------------ *
  * Prevents the "scale hallucination" failure where a tight macro framing is

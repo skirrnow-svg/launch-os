@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   PROMPT_BUILDER_OPTIONS as OPT,
+  CATEGORY_TAXONOMY,
+  type SubjectCategory,
   FRAMING_COUNT,
   framingScope,
   actionScope,
@@ -44,86 +46,55 @@ const MOVEMENTS = OPT.cameraFramingAndMovement.slice(FRAMING_COUNT);
 const inputCls =
   "rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-300";
 
-// One-tap starting points. Each fills the whole form with a sensible look so a
-// non-technical user gets a strong result immediately, then tweaks if they wish.
-type Preset = {
-  id: string;
-  emoji: string;
-  title: string;
-  blurb: string;
-  hero: string;
-  actors: string[];
-  action: string;
-  framing: string[];
-  movements: string[];
-  environments: string[];
-  lighting: string[];
-  materials: string[];
+// Category (Style) cards. Selecting one cascades the whole form: the downstream
+// option lists (actors/environments/lighting/actions/materials + hero
+// suggestions) are scoped to the category, and a sensible expert starting shot
+// is applied. Data lives in CATEGORY_TAXONOMY (single source of truth).
+const CATEGORY_META: Record<SubjectCategory, { emoji: string; blurb: string }> = {
+  saas_digital: { emoji: "💻", blurb: "SaaS, apps, dashboards, AI tools" },
+  b2b_service: { emoji: "📈", blurb: "Agency, consulting, logistics, finance" },
+  physical_product: { emoji: "📦", blurb: "Hardware, wearables, consumer tech" },
+  mobility_vehicle: { emoji: "🏍️", blurb: "Motorcycles, cars, EV, mobility gear" },
+  food_beverage: { emoji: "☕", blurb: "Drinks, culinary, packaged goods" },
+};
+const CATEGORY_KEYS = Object.keys(CATEGORY_TAXONOMY) as SubjectCategory[];
+
+// The category's defaultStyle → a strong cinematic starting shot (framing +
+// movement). Framing/movement stay global because they are scale-scoped.
+const STYLE_SHOT: Record<string, { framing: string; movement: string }> = {
+  "App / screen demo": { framing: "Eye-level medium commercial hero shot", movement: "Slow controlled push-in dolly" },
+  "Product hero": { framing: "Macro close-up with shallow depth of field", movement: "Smooth 45-degree orbital arc rotation" },
+  "Rider & vehicle": { framing: "Low-angle three-quarter tracking shot", movement: "Slow controlled push-in dolly" },
+  "Food & drink": { framing: "Macro close-up with shallow depth of field", movement: "Slow controlled push-in dolly" },
 };
 
-const PRESETS: Preset[] = [
-  {
-    id: "rider",
-    emoji: "🏍️",
-    title: "Rider & vehicle",
-    blurb: "A person using a bike or car in motion",
-    hero: "Dual-sport adventure motorcycle",
-    actors: ["Experienced adventure motorcycle rider"],
-    action:
-      "Stepping firmly onto motorcycle footpeg with authentic weight transfer and sole traction",
-    framing: ["Low-angle three-quarter tracking shot"],
-    movements: ["Slow controlled push-in dolly"],
-    environments: ["Wet coastal tarmac road at golden hour"],
-    lighting: ["Warm golden-hour sunlight with dramatic lens flares"],
-    materials: ["Matte rugged technical rubber and molded armor"],
-  },
-  {
-    id: "product",
-    emoji: "📦",
-    title: "Product hero",
-    blurb: "A close-up beauty shot of a product (no people)",
-    hero: "Waterproof technical trail-running shoes",
-    actors: [],
-    action: "",
-    framing: ["Macro close-up with shallow depth of field"],
-    movements: ["Smooth 45-degree orbital arc rotation"],
-    environments: ["Minimalist raw concrete architectural gallery"],
-    lighting: ["High-contrast commercial studio edge rim lighting"],
-    materials: [
-      "Matte rugged technical rubber and molded armor",
-      "Micro water droplets, condensation, and rain splashes",
-    ],
-  },
-  {
-    id: "app",
-    emoji: "💻",
-    title: "App / screen demo",
-    blurb: "Software, a dashboard, or a device screen",
-    hero: "Cloud infrastructure monitoring dashboard",
-    actors: ["Senior software engineer"],
-    action:
-      "Navigating interactive data charts with precise cursor clicks and smooth viewport pans",
-    framing: ["Eye-level medium commercial hero shot"],
-    movements: ["Slow controlled push-in dolly"],
-    environments: ["Corporate executive office with skyline glass walls"],
-    lighting: ["Soft diffused overcast daylight with low shadows"],
-    materials: ["High-luminance crisp OLED screen glass"],
-  },
-  {
-    id: "food",
-    emoji: "☕",
-    title: "Food & drink",
-    blurb: "A tasty, textured food or beverage moment",
-    hero: "Commercial espresso group head pulling a shot",
-    actors: [],
-    action: "Pulling espresso with thick golden crema swirling into a warm ceramic cup",
-    framing: ["Macro close-up with shallow depth of field"],
-    movements: ["Slow controlled push-in dolly"],
-    environments: ["Sunlit boutique cafe with exposed brickwork"],
-    lighting: ["Warm golden-hour sunlight with dramatic lens flares"],
-    materials: ["Micro water droplets, condensation, and rain splashes"],
-  },
-];
+// Sentinel that means "no people" — the actor select already offers this as its
+// empty option, so it is filtered out of the mapped option list.
+const NO_PEOPLE = "Just the product — no people";
+
+// The default category the builder opens on.
+const DEFAULT_CATEGORY: SubjectCategory = "physical_product";
+
+// Compute a coherent starting state for a category: option lists come from the
+// taxonomy; framing/movement from the category's default style; one sensible
+// pick per field (actors cleared under a macro shot to respect the scale guard).
+function seedFor(cat: SubjectCategory) {
+  const t = CATEGORY_TAXONOMY[cat];
+  const shot = STYLE_SHOT[t.defaultStyle] ?? { framing: "", movement: "" };
+  const macro = framingScope(shot.framing) === "macro";
+  const firstActor = t.actors.find((a) => a !== NO_PEOPLE);
+  return {
+    hero: t.sampleSubjects[0] ?? "",
+    framing: shot.framing ? [shot.framing] : [],
+    movements: shot.movement ? [shot.movement] : [],
+    actors: macro || !firstActor ? [] : [firstActor],
+    environments: t.environments[0] ? [t.environments[0]] : [],
+    lighting: t.lighting[0] ? [t.lighting[0]] : [],
+    action: t.actions[0] ?? "",
+    materials: t.materials[0] ? [t.materials[0]] : [],
+  };
+}
+const DEFAULT_SEED = seedFor(DEFAULT_CATEGORY);
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -217,16 +188,16 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
   const [open, setOpen] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [activePreset, setActivePreset] = useState<string>("");
+  const [category, setCategory] = useState<SubjectCategory>(DEFAULT_CATEGORY);
 
-  const [hero, setHero] = useState("");
-  const [actors, setActors] = useState<string[]>([]); // 1–2
-  const [action, setAction] = useState("");
-  const [framing, setFraming] = useState<string[]>([]); // exactly 1
-  const [movements, setMovements] = useState<string[]>([]); // up to 2
-  const [environments, setEnvironments] = useState<string[]>([]); // up to 3
-  const [lighting, setLighting] = useState<string[]>([]); // up to 2
-  const [materials, setMaterials] = useState<string[]>([]); // up to 4
+  const [hero, setHero] = useState(DEFAULT_SEED.hero);
+  const [actors, setActors] = useState<string[]>(DEFAULT_SEED.actors); // 1–2
+  const [action, setAction] = useState(DEFAULT_SEED.action);
+  const [framing, setFraming] = useState<string[]>(DEFAULT_SEED.framing); // exactly 1
+  const [movements, setMovements] = useState<string[]>(DEFAULT_SEED.movements); // up to 2
+  const [environments, setEnvironments] = useState<string[]>(DEFAULT_SEED.environments); // up to 3
+  const [lighting, setLighting] = useState<string[]>(DEFAULT_SEED.lighting); // up to 2
+  const [materials, setMaterials] = useState<string[]>(DEFAULT_SEED.materials); // up to 4
   const [duration, setDuration] = useState(6); // clip length (s) 4-15 — drives the linter's action budget
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [resolution, setResolution] = useState<"480p" | "720p" | "1080p">("720p"); // Higgsfield native
@@ -253,21 +224,30 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
 
-  function applyPreset(p: Preset) {
-    setActivePreset(p.id);
-    setHero(p.hero);
-    setActors(p.actors);
-    setAction(p.action);
-    setFraming(p.framing);
-    setMovements(p.movements);
-    setEnvironments(p.environments);
-    setLighting(p.lighting);
-    setMaterials(p.materials);
+  // Category-scoped option lists — every downstream field reads from the active
+  // category so the whole form stays coherent for that domain.
+  const cat = CATEGORY_TAXONOMY[category];
+  const catActors = cat.actors.filter((a) => a !== NO_PEOPLE);
+
+  // Selecting a category cascades: repopulate the option lists AND seed a strong
+  // expert starting point (hero, shot, one sensible pick per field), clearing
+  // anything that doesn't belong to the new domain.
+  function changeCategory(next: SubjectCategory) {
+    setCategory(next);
+    const s = seedFor(next);
+    setHero(s.hero);
+    setFraming(s.framing);
+    setMovements(s.movements);
+    setActors(s.actors);
+    setEnvironments(s.environments);
+    setLighting(s.lighting);
+    setAction(s.action);
+    setMaterials(s.materials);
   }
 
   // Current framing's scale scope drives which actions/lenses/actors are valid.
   const curFramingScope = framingScope(framing[0]);
-  const allowedActions = OPT.actionsAndMechanics.filter((a) => actionAllowedInScope(a, curFramingScope));
+  const allowedActions = cat.actions.filter((a) => actionAllowedInScope(a, curFramingScope));
   const allowedLenses = compatibleLenses(curFramingScope);
   const lensLocked = curFramingScope === "macro";
   const actorsDisabled = curFramingScope === "macro"; // actors morph scale in close-ups
@@ -479,32 +459,37 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
           {/* STEP 1 + 2 — the guided (basic) path. Locked for below-basic plans. */}
           <fieldset disabled={!canBasic} className="m-0 border-0 p-0 disabled:opacity-60">
 
-          {/* STEP 1 — style presets */}
+          {/* STEP 1 — subject category (cascades every downstream option) */}
           <div className="mb-5">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              1 · Start with a style
+              1 · What are you promoting?
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {PRESETS.map((p) => {
-                const on = activePreset === p.id;
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {CATEGORY_KEYS.map((key) => {
+                const c = CATEGORY_TAXONOMY[key];
+                const meta = CATEGORY_META[key];
+                const on = category === key;
                 return (
                   <button
-                    key={p.id}
+                    key={key}
                     type="button"
-                    onClick={() => applyPreset(p)}
+                    onClick={() => changeCategory(key)}
                     className={`rounded-xl border p-3 text-left transition-colors ${
                       on
                         ? "border-indigo-500 bg-indigo-50 ring-1 ring-indigo-300"
                         : "border-slate-200 bg-white hover:border-indigo-300"
                     }`}
                   >
-                    <div className="text-2xl">{p.emoji}</div>
-                    <div className="mt-1 text-sm font-semibold text-slate-800">{p.title}</div>
-                    <div className="text-xs text-slate-500">{p.blurb}</div>
+                    <div className="text-2xl">{meta.emoji}</div>
+                    <div className="mt-1 text-sm font-semibold text-slate-800">{c.label}</div>
+                    <div className="text-xs text-slate-500">{meta.blurb}</div>
                   </button>
                 );
               })}
             </div>
+            <p className="mt-2 text-[11px] text-slate-400">
+              Pick the domain — the people, settings, lighting, actions and materials below all adapt to it.
+            </p>
           </div>
 
           {/* STEP 2 — plain essentials */}
@@ -518,11 +503,11 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
                   list="hero-suggestions"
                   value={hero}
                   onChange={(e) => setHero(e.target.value)}
-                  placeholder="e.g. Waterproof adventure boots"
+                  placeholder={cat.heroPlaceholder}
                   className={inputCls}
                 />
                 <datalist id="hero-suggestions">
-                  {OPT.heroSubjects.map((s) => (
+                  {cat.sampleSubjects.map((s) => (
                     <option key={s} value={s} />
                   ))}
                 </datalist>
@@ -536,7 +521,7 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
                   className={`${inputCls} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
                 >
                   <option value="">Just the product — no people</option>
-                  {OPT.actorsAndWardrobe.slice(0, 7).map((a) => (
+                  {catActors.map((a) => (
                     <option key={a} value={a}>
                       {a}
                     </option>
@@ -556,7 +541,7 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
                   className={inputCls}
                 >
                   <option value="">No specific setting</option>
-                  {OPT.environments.map((v) => (
+                  {cat.environments.map((v) => (
                     <option key={v} value={v}>
                       {v}
                     </option>
@@ -571,7 +556,7 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
                   className={inputCls}
                 >
                   <option value="">Let us choose</option>
-                  {OPT.lightingAndAtmosphere.map((v) => (
+                  {cat.lighting.map((v) => (
                     <option key={v} value={v}>
                       {v}
                     </option>
@@ -848,16 +833,16 @@ export default function VideoPromptBuilder({ access, isAdmin = false }: { access
                 <div className="mt-4 grid gap-5">
                   {actorsDisabled ? (
                     <div className="opacity-50">
-                      <ChipGroup label="Actor & wardrobe" hint="disabled for macro/detail shots" options={OPT.actorsAndWardrobe} selected={[]} onChange={() => {}} max={2} />
+                      <ChipGroup label="Actor & wardrobe" hint="disabled for macro/detail shots" options={catActors} selected={[]} onChange={() => {}} max={2} />
                     </div>
                   ) : (
-                    <ChipGroup label="Actor & wardrobe" hint="pick 1–2" options={OPT.actorsAndWardrobe} selected={actors} onChange={setActors} max={2} />
+                    <ChipGroup label="Actor & wardrobe" hint="pick 1–2" options={catActors} selected={actors} onChange={setActors} max={2} />
                   )}
                   <ChipGroup label="Camera framing" hint="pick 1" options={FRAMINGS} selected={framing} onChange={changeFraming} max={1} />
                   <ChipGroup label="Camera movement" hint="up to 2" options={MOVEMENTS} selected={movements} onChange={setMovements} max={2} />
-                  <ChipGroup label="Environment" hint="up to 3" options={OPT.environments} selected={environments} onChange={setEnvironments} max={3} />
-                  <ChipGroup label="Lighting & atmosphere" hint="up to 2" options={OPT.lightingAndAtmosphere} selected={lighting} onChange={setLighting} max={2} />
-                  <ChipGroup label="Material & finish focus" hint="up to 4" options={OPT.materialsAndFinishes} selected={materials} onChange={setMaterials} max={4} />
+                  <ChipGroup label="Environment" hint="up to 3" options={cat.environments} selected={environments} onChange={setEnvironments} max={3} />
+                  <ChipGroup label="Lighting & atmosphere" hint="up to 2" options={cat.lighting} selected={lighting} onChange={setLighting} max={2} />
+                  <ChipGroup label="Material & finish focus" hint="up to 4" options={cat.materials} selected={materials} onChange={setMaterials} max={4} />
                 </div>
 
                 {/* Guardrails */}
