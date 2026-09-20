@@ -7,59 +7,160 @@ import Link from "next/link";
  * Brand Studio (free wedge) — stamp any IMAGE or VIDEO with a brand overlay,
  * entirely in the browser: no upload, no server, no AI credits.
  *
- * Both media share one overlay recipe (a lower/upper brand bar + accent line +
- * wordmark + tagline + optional logo):
- *   • Image → composited on a <canvas>, downloaded as PNG.
- *   • Video → the overlay is rendered to a transparent PNG (same canvas code),
- *     previewed live as a CSS layer over the <video>, then baked in on demand
- *     with ffmpeg.wasm (a simple `overlay` composite — no drawtext/freetype
- *     dependency) and downloaded as MP4.
+ * One overlay recipe shared by both media (rendered on a <canvas>):
+ *   • Bar layout   → full-width brand bar (top or bottom) with an accent line.
+ *   • Corner layout→ a compact rounded brand block in any of the four corners.
+ * Image → composited + downloaded as PNG. Video → the overlay is rendered to a
+ * transparent PNG, previewed live as a CSS layer over the <video>, then baked in
+ * with ffmpeg.wasm (a simple `overlay` composite) and downloaded as MP4.
  *
- * A brand-clean base + overlay also sidesteps Higgsfield's ip_detected filter.
- * The email + phone-OTP lead gate wraps the download once the OTP provider is
- * wired (SN77); today the tools are open so the wedge can be exercised.
+ * Downloads are gated by email verification (Resend); phone OTP is the next
+ * factor once a provider is wired (SN77).
  */
 
 const DEFAULT_COLOR = "#BEF264"; // SkirrNow lime
-const MAX_VIDEO_BYTES = 60 * 1024 * 1024; // 60 MB
+const MAX_VIDEO_BYTES = 60 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 30;
 
+type Layout = "bar-bottom" | "bar-top" | "corner-tl" | "corner-tr" | "corner-bl" | "corner-br";
+const LAYOUTS: { id: Layout; label: string }[] = [
+  { id: "bar-bottom", label: "Bottom bar" },
+  { id: "bar-top", label: "Top bar" },
+  { id: "corner-tl", label: "Top-left" },
+  { id: "corner-tr", label: "Top-right" },
+  { id: "corner-bl", label: "Bottom-left" },
+  { id: "corner-br", label: "Bottom-right" },
+];
+
+const FONTS: { label: string; css: string }[] = [
+  { label: "Sans (Arial)", css: "Arial, sans-serif" },
+  { label: "Display (Arial Black)", css: "'Arial Black', Impact, sans-serif" },
+  { label: "Impact", css: "Impact, 'Arial Narrow', sans-serif" },
+  { label: "Serif (Georgia)", css: "Georgia, serif" },
+  { label: "Times", css: "'Times New Roman', serif" },
+  { label: "Rounded (Trebuchet)", css: "'Trebuchet MS', sans-serif" },
+  { label: "Mono (Courier)", css: "'Courier New', monospace" },
+  { label: "Verdana", css: "Verdana, sans-serif" },
+];
+
+type LogoDraw = { src: CanvasImageSource; w: number; h: number };
 type BrandOpts = {
   brandName: string;
   tagline: string;
   color: string;
-  position: "bottom" | "top";
-  logo: HTMLImageElement | null;
+  layout: Layout;
+  nameFont: string;
+  tagFont: string;
+  logo: LogoDraw | null;
 };
 
-/** Draw the brand overlay (bar, accent, wordmark, tagline, logo) at w×h. */
-function drawOverlay(ctx: CanvasRenderingContext2D, w: number, h: number, o: BrandOpts) {
-  const barH = Math.max(64, Math.round(h * 0.16));
-  const barY = o.position === "top" ? 0 : h - barH;
-  ctx.fillStyle = "rgba(10,12,16,0.5)";
-  ctx.fillRect(0, barY, w, barH);
-  ctx.fillStyle = o.color;
-  ctx.fillRect(0, o.position === "top" ? barH - 4 : barY, w, 4);
+function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
 
-  const padX = Math.round(w * 0.03);
-  ctx.textBaseline = "alphabetic";
-  if (o.brandName.trim()) {
-    ctx.font = `700 ${Math.round(barH * 0.42)}px Arial, sans-serif`;
+/** Draw the brand overlay (bar or corner block) at w×h. */
+function drawOverlay(ctx: CanvasRenderingContext2D, w: number, h: number, o: BrandOpts) {
+  const pad = Math.round(w * 0.03);
+  const name = o.brandName.trim();
+  const tag = o.tagline.trim();
+
+  if (o.layout === "bar-bottom" || o.layout === "bar-top") {
+    const barH = Math.max(64, Math.round(h * 0.16));
+    const top = o.layout === "bar-top";
+    const barY = top ? 0 : h - barH;
+    ctx.fillStyle = "rgba(10,12,16,0.5)";
+    ctx.fillRect(0, barY, w, barH);
     ctx.fillStyle = o.color;
-    ctx.fillText(o.brandName.trim(), padX, barY + Math.round(barH * (o.tagline.trim() ? 0.5 : 0.62)));
+    ctx.fillRect(0, top ? barH - 4 : barY, w, 4);
+    ctx.textBaseline = "alphabetic";
+    if (name) {
+      ctx.font = `700 ${Math.round(barH * 0.42)}px ${o.nameFont}`;
+      ctx.fillStyle = o.color;
+      ctx.fillText(name, pad, barY + Math.round(barH * (tag ? 0.5 : 0.62)));
+    }
+    if (tag) {
+      ctx.font = `400 ${Math.round(barH * 0.22)}px ${o.tagFont}`;
+      ctx.fillStyle = "rgba(255,255,255,0.92)";
+      ctx.fillText(tag, pad, barY + Math.round(barH * 0.82));
+    }
+    if (o.logo) {
+      const lh = Math.round(h * 0.1);
+      const lw = Math.round(lh * (o.logo.w / o.logo.h));
+      ctx.drawImage(o.logo.src, w - lw - pad, top ? h - lh - Math.round(pad * 0.6) : Math.round(pad * 0.6), lw, lh);
+    }
+    return;
   }
-  if (o.tagline.trim()) {
-    ctx.font = `400 ${Math.round(barH * 0.22)}px Arial, sans-serif`;
-    ctx.fillStyle = "rgba(255,255,255,0.92)";
-    ctx.fillText(o.tagline.trim(), padX, barY + Math.round(barH * 0.82));
-  }
-  if (o.logo) {
-    const lh = Math.round(h * 0.1);
-    const lw = Math.round(lh * (o.logo.naturalWidth / o.logo.naturalHeight));
-    const lx = w - lw - padX;
-    const ly = o.position === "top" ? h - lh - Math.round(padX * 0.6) : Math.round(padX * 0.6);
-    ctx.drawImage(o.logo, lx, ly, lw, lh);
-  }
+
+  // Corner block.
+  const nameSize = Math.round(h * 0.058);
+  const tagSize = Math.round(h * 0.032);
+  const gap = Math.round(h * 0.013);
+  const inner = Math.round(h * 0.024);
+  const stripe = Math.max(3, Math.round(w * 0.006));
+  const logoH = o.logo ? Math.round(h * 0.11) : 0;
+  const logoW = o.logo ? Math.round(logoH * (o.logo.w / o.logo.h)) : 0;
+
+  ctx.font = `700 ${nameSize}px ${o.nameFont}`;
+  const nameW = name ? ctx.measureText(name).width : 0;
+  ctx.font = `400 ${tagSize}px ${o.tagFont}`;
+  const tagW = tag ? ctx.measureText(tag).width : 0;
+
+  const contentW = Math.max(nameW, tagW, logoW);
+  const boxW = Math.round(contentW + inner * 2 + stripe);
+  const textH = (name ? nameSize : 0) + (name && tag ? gap : 0) + (tag ? tagSize : 0);
+  const boxH = Math.round((logoH ? logoH + gap : 0) + textH + inner * 2);
+
+  const left = o.layout === "corner-tl" || o.layout === "corner-bl";
+  const topC = o.layout === "corner-tl" || o.layout === "corner-tr";
+  const bx = left ? pad : w - boxW - pad;
+  const by = topC ? pad : h - boxH - pad;
+  const r = Math.round(h * 0.016);
+
+  roundRectPath(ctx, bx, by, boxW, boxH, r);
+  ctx.fillStyle = "rgba(10,12,16,0.55)";
+  ctx.fill();
+  roundRectPath(ctx, bx, by, stripe + r, boxH, r);
+  ctx.fillStyle = o.color;
+  ctx.save();
+  roundRectPath(ctx, bx, by, boxW, boxH, r);
+  ctx.clip();
+  ctx.fillRect(bx, by, stripe, boxH);
+  ctx.restore();
+
+  const cx = bx + inner + stripe;
+  let cy = by + inner;
+  ctx.textBaseline = "top";
+  if (o.logo) { ctx.drawImage(o.logo.src, cx, cy, logoW, logoH); cy += logoH + gap; }
+  if (name) { ctx.font = `700 ${nameSize}px ${o.nameFont}`; ctx.fillStyle = o.color; ctx.fillText(name, cx, cy); cy += nameSize + gap; }
+  if (tag) { ctx.font = `400 ${tagSize}px ${o.tagFont}`; ctx.fillStyle = "rgba(255,255,255,0.92)"; ctx.fillText(tag, cx, cy); }
+}
+
+/** Color-key a logo's background (sampled from its top-left pixel) to alpha. */
+function keyOutLogoBackground(img: HTMLImageElement): LogoDraw {
+  const c = document.createElement("canvas");
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const ctx = c.getContext("2d");
+  if (!ctx) return { src: img, w: img.naturalWidth, h: img.naturalHeight };
+  ctx.drawImage(img, 0, 0);
+  try {
+    const id = ctx.getImageData(0, 0, c.width, c.height);
+    const d = id.data;
+    const kr = d[0], kg = d[1], kb = d[2];
+    const tol = 52 * 52 * 3;
+    for (let i = 0; i < d.length; i += 4) {
+      const dr = d[i] - kr, dg = d[i + 1] - kg, db = d[i + 2] - kb;
+      if (dr * dr + dg * dg + db * db < tol) d[i + 3] = 0;
+    }
+    ctx.putImageData(id, 0, 0);
+  } catch { /* tainted canvas — leave as-is */ }
+  return { src: c, w: c.width, h: c.height };
 }
 
 function useImageFromFile() {
@@ -81,22 +182,23 @@ export default function BrandStudio() {
   const [brandName, setBrandName] = useState("SkirrNow");
   const [tagline, setTagline] = useState("AI Agentic Marketing Platform");
   const [color, setColor] = useState(DEFAULT_COLOR);
-  const [position, setPosition] = useState<"bottom" | "top">("bottom");
+  const [layout, setLayout] = useState<Layout>("bar-bottom");
+  const [nameFont, setNameFont] = useState(FONTS[0].css);
+  const [tagFont, setTagFont] = useState(FONTS[0].css);
+  const [logoTransparent, setLogoTransparent] = useState(false);
+  const [logoDraw, setLogoDraw] = useState<LogoDraw | null>(null);
 
-  // Uploaded media.
   const [mediaType, setMediaType] = useState<"image" | "video" | null>(null);
   const [imageEl, setImageEl] = useState<HTMLImageElement | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string>("");
+  const [videoUrl, setVideoUrl] = useState("");
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoDims, setVideoDims] = useState<{ w: number; h: number; dur: number } | null>(null);
   const [err, setErr] = useState("");
 
-  const [overlayUrl, setOverlayUrl] = useState(""); // transparent overlay PNG (video preview + ffmpeg)
+  const [overlayUrl, setOverlayUrl] = useState("");
   const [busy, setBusy] = useState(false);
   const [pct, setPct] = useState(0);
 
-  // Lead gate — verify email (6-digit code) once, then downloads are unlocked
-  // for this browser. Phone OTP is added as a second factor once wired (SN77).
   const [unlocked, setUnlocked] = useState(false);
   const [gate, setGate] = useState<"closed" | "email" | "code">("closed");
   const [gEmail, setGEmail] = useState("");
@@ -109,7 +211,13 @@ export default function BrandStudio() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  const opts: BrandOpts = { brandName, tagline, color, position, logo: logo.img };
+  // Prepare the logo to draw (optionally with its background keyed out).
+  useEffect(() => {
+    if (!logo.img) { setLogoDraw(null); return; }
+    setLogoDraw(logoTransparent
+      ? keyOutLogoBackground(logo.img)
+      : { src: logo.img, w: logo.img.naturalWidth, h: logo.img.naturalHeight });
+  }, [logo.img, logoTransparent]);
 
   function loadFile(file: File | null | undefined) {
     setErr("");
@@ -134,7 +242,7 @@ export default function BrandStudio() {
     }
   }
 
-  // Image preview: composite base image + overlay onto the visible canvas.
+  // Image preview: base image + overlay onto the visible canvas.
   useEffect(() => {
     if (mediaType !== "image" || !imageEl) return;
     const cv = canvasRef.current;
@@ -147,10 +255,10 @@ export default function BrandStudio() {
     if (!ctx) return;
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(imageEl, 0, 0, w, h);
-    drawOverlay(ctx, w, h, opts);
-  }, [mediaType, imageEl, brandName, tagline, color, position, logo.img]);
+    drawOverlay(ctx, w, h, { brandName, tagline, color, layout, nameFont, tagFont, logo: logoDraw });
+  }, [mediaType, imageEl, brandName, tagline, color, layout, nameFont, tagFont, logoDraw]);
 
-  // Video: render the transparent overlay PNG at the video's native size.
+  // Video: transparent overlay PNG at native size (for live preview + ffmpeg).
   useEffect(() => {
     if (mediaType !== "video" || !videoDims) return;
     const cv = document.createElement("canvas");
@@ -158,9 +266,9 @@ export default function BrandStudio() {
     const ctx = cv.getContext("2d");
     if (!ctx) return;
     ctx.clearRect(0, 0, videoDims.w, videoDims.h);
-    drawOverlay(ctx, videoDims.w, videoDims.h, opts);
+    drawOverlay(ctx, videoDims.w, videoDims.h, { brandName, tagline, color, layout, nameFont, tagFont, logo: logoDraw });
     setOverlayUrl(cv.toDataURL("image/png"));
-  }, [mediaType, videoDims, brandName, tagline, color, position, logo.img]);
+  }, [mediaType, videoDims, brandName, tagline, color, layout, nameFont, tagFont, logoDraw]);
 
   function downloadImage() {
     const cv = canvasRef.current;
@@ -192,13 +300,11 @@ export default function BrandStudio() {
       await ffmpeg.writeFile(inName, await fetchFile(videoFile));
       await ffmpeg.writeFile("ovl.png", await fetchFile(overlayUrl));
       await ffmpeg.exec([
-        "-i", inName,
-        "-i", "ovl.png",
+        "-i", inName, "-i", "ovl.png",
         "-filter_complex", "[0:v][1:v]overlay=0:0:format=auto[v]",
         "-map", "[v]", "-map", "0:a?",
         "-c:v", "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p",
-        "-movflags", "+faststart",
-        "out.mp4",
+        "-movflags", "+faststart", "out.mp4",
       ]);
       const data = (await ffmpeg.readFile("out.mp4")) as Uint8Array;
       const blob = new Blob([data as unknown as BlobPart], { type: "video/mp4" });
@@ -222,8 +328,8 @@ export default function BrandStudio() {
     else if (k === "video") void brandVideo();
   }
   function requestDownload(kind: "image" | "video") {
-    if (unlocked) { pendingRef.current = kind; runPending(); return; }
     pendingRef.current = kind;
+    if (unlocked) { runPending(); return; }
     setGErr(""); setGate("email");
   }
   async function sendGateCode() {
@@ -232,8 +338,7 @@ export default function BrandStudio() {
     setGBusy(true);
     try {
       const r = await fetch("/api/public/free/code", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: gEmail.trim() }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: gEmail.trim() }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Could not send the code.");
@@ -266,53 +371,60 @@ export default function BrandStudio() {
           onDrop={(e) => { e.preventDefault(); loadFile(e.dataTransfer.files?.[0]); }}
           className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-center hover:border-accent"
         >
-          <span className="text-sm font-semibold text-slate-700">
-            {mediaType ? "Change media" : "Drop an image or video, or click to upload"}
-          </span>
+          <span className="text-sm font-semibold text-slate-700">{mediaType ? "Change media" : "Drop an image or video, or click to upload"}</span>
           <span className="mt-0.5 text-[11px] text-slate-400">Image (PNG/JPG/WEBP) or video (MP4/WEBM/MOV, ≤60 MB, ≤30s)</span>
-          <input type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" className="hidden"
-            onChange={(e) => loadFile(e.target.files?.[0])} />
+          <input type="file" accept="image/png,image/jpeg,image/webp,video/mp4,video/webm,video/quicktime" className="hidden" onChange={(e) => loadFile(e.target.files?.[0])} />
         </label>
         {err && <p className="text-xs text-rose-600">{err}</p>}
 
         <div>
           <span className="text-xs font-semibold text-slate-600">Brand name</span>
           <input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Your brand" className={`mt-1 ${inputCls}`} />
+          <select value={nameFont} onChange={(e) => setNameFont(e.target.value)} className={`mt-1 ${inputCls}`} aria-label="Brand name font">
+            {FONTS.map((f) => <option key={f.label} value={f.css}>{f.label}</option>)}
+          </select>
         </div>
         <div>
           <span className="text-xs font-semibold text-slate-600">Tagline (optional)</span>
           <input value={tagline} onChange={(e) => setTagline(e.target.value)} placeholder="Your tagline" className={`mt-1 ${inputCls}`} />
+          <select value={tagFont} onChange={(e) => setTagFont(e.target.value)} className={`mt-1 ${inputCls}`} aria-label="Tagline font">
+            {FONTS.map((f) => <option key={f.label} value={f.css}>{f.label}</option>)}
+          </select>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div>
-            <span className="text-xs font-semibold text-slate-600">Brand color</span>
-            <div className="mt-1 flex items-center gap-2">
-              <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-12 cursor-pointer rounded border border-slate-300" />
-              <span className="font-mono text-xs text-slate-500">{color}</span>
-            </div>
-          </div>
-          <div>
-            <span className="text-xs font-semibold text-slate-600">Brand bar</span>
-            <div className="mt-1 flex gap-1">
-              {(["bottom", "top"] as const).map((p) => (
-                <button key={p} type="button" onClick={() => setPosition(p)}
-                  className={`rounded border px-3 py-1.5 text-xs font-semibold capitalize ${position === p ? "border-accent bg-accent text-white" : "border-slate-300 bg-white text-slate-600 hover:border-accent"}`}>
-                  {p}
-                </button>
-              ))}
-            </div>
+        <div>
+          <span className="text-xs font-semibold text-slate-600">Brand color</span>
+          <div className="mt-1 flex items-center gap-2">
+            <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="h-9 w-12 cursor-pointer rounded border border-slate-300" />
+            <span className="font-mono text-xs text-slate-500">{color}</span>
           </div>
         </div>
 
-        <label className="flex cursor-pointer items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm hover:border-accent">
-          <span className="font-semibold text-slate-700">{logo.img ? "Change logo" : "Add a logo (optional)"}</span>
+        <div>
+          <span className="text-xs font-semibold text-slate-600">Placement</span>
+          <div className="mt-1 grid grid-cols-3 gap-1">
+            {LAYOUTS.map((l) => (
+              <button key={l.id} type="button" onClick={() => setLayout(l.id)}
+                className={`rounded border px-2 py-1.5 text-[11px] font-semibold transition-colors ${layout === l.id ? "border-accent bg-accent text-white" : "border-slate-300 bg-white text-slate-600 hover:border-accent"}`}>
+                {l.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-300 bg-white p-3">
+          <label className="flex cursor-pointer items-center justify-between text-sm">
+            <span className="font-semibold text-slate-700">{logo.img ? "Change logo" : "Add a logo (optional)"}</span>
+            {logo.img && <button type="button" onClick={(e) => { e.preventDefault(); logo.clear(); }} className="text-xs font-semibold text-rose-600 hover:underline">Remove</button>}
+            <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => logo.load(e.target.files?.[0])} />
+          </label>
           {logo.img && (
-            <button type="button" onClick={(e) => { e.preventDefault(); logo.clear(); }} className="text-xs font-semibold text-rose-600 hover:underline">Remove</button>
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-slate-600">
+              <input type="checkbox" checked={logoTransparent} onChange={(e) => setLogoTransparent(e.target.checked)} />
+              Make logo background transparent (removes a solid backdrop)
+            </label>
           )}
-          <input type="file" accept="image/png,image/jpeg,image/webp" className="hidden"
-            onChange={(e) => logo.load(e.target.files?.[0])} />
-        </label>
+        </div>
 
         {mediaType === "video" ? (
           <div>
@@ -329,7 +441,6 @@ export default function BrandStudio() {
           </button>
         )}
 
-        {/* Lead gate — verify email once to unlock free downloads */}
         {gate !== "closed" && (
           <div className="rounded-lg border border-accent bg-accent/5 p-4">
             <div className="text-sm font-semibold text-slate-900">One step — verify your email to download free</div>
@@ -337,10 +448,7 @@ export default function BrandStudio() {
               <div className="mt-2 space-y-2">
                 <input type="email" value={gEmail} onChange={(e) => setGEmail(e.target.value)} placeholder="you@company.com" className={inputCls} />
                 <div className="flex gap-2">
-                  <button type="button" onClick={sendGateCode} disabled={gBusy}
-                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">
-                    {gBusy ? "Sending…" : "Email me a code"}
-                  </button>
+                  <button type="button" onClick={sendGateCode} disabled={gBusy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">{gBusy ? "Sending…" : "Email me a code"}</button>
                   <button type="button" onClick={() => setGate("closed")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Cancel</button>
                 </div>
               </div>
@@ -349,10 +457,7 @@ export default function BrandStudio() {
                 <p className="text-xs text-slate-500">We emailed a 6-digit code to <b>{gEmail}</b>.</p>
                 <input inputMode="numeric" value={gCode} onChange={(e) => setGCode(e.target.value)} placeholder="123456" className={inputCls} />
                 <div className="flex gap-2">
-                  <button type="button" onClick={verifyGate} disabled={gBusy}
-                    className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">
-                    {gBusy ? "Verifying…" : "Verify & download"}
-                  </button>
+                  <button type="button" onClick={verifyGate} disabled={gBusy} className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-40">{gBusy ? "Verifying…" : "Verify & download"}</button>
                   <button type="button" onClick={() => setGate("email")} className="px-3 py-2 text-sm font-semibold text-slate-500 hover:underline">Change email</button>
                 </div>
               </div>
@@ -391,9 +496,7 @@ export default function BrandStudio() {
             </div>
           )}
         </div>
-        <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-slate-400">
-          Everything runs in your browser · no upload · no AI credits
-        </p>
+        <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-slate-400">Everything runs in your browser · no upload · no AI credits</p>
       </div>
     </div>
   );
