@@ -202,6 +202,7 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
   // Ladder: signed out → verify email (pin) → 1 free download per email; a 2nd
   // needs a free account (no card); signed in → unlimited.
   const [needSignup, setNeedSignup] = useState(false);
+  const [needsUpgrade, setNeedsUpgrade] = useState(false); // signed-in, AI tokens exhausted
   const [freeUsed, setFreeUsed] = useState(false); // this browser already claimed its 1 free
   const [gate, setGate] = useState<"closed" | "email" | "code">("closed");
   const [gEmail, setGEmail] = useState("");
@@ -330,9 +331,20 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
     if (k === "image") downloadImage();
     else if (k === "video") void brandVideo();
   }
-  function requestDownload(kind: "image" | "video") {
+  async function requestDownload(kind: "image" | "video") {
     pendingRef.current = kind;
-    if (isSignedIn) { runPending(); return; }          // signed in → unlimited
+    if (isSignedIn) {
+      // Meter the creation against the account's AI-token allowance.
+      setNeedsUpgrade(false);
+      try {
+        const r = await fetch("/api/brand/meter", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ media: kind }),
+        });
+        if (r.status === 402) { setNeedsUpgrade(true); return; } // out of tokens → upgrade
+      } catch { /* fail open — never block a creation on a metering hiccup */ }
+      runPending();
+      return;
+    }
     if (freeUsed) { setNeedSignup(true); return; }      // used the 1 free → sign up for more
     setGErr(""); setNeedSignup(false); setGate("email"); // otherwise verify email for the 1 free
   }
@@ -490,7 +502,20 @@ export default function BrandStudio({ isSignedIn }: { isSignedIn: boolean }) {
             </div>
           </div>
         )}
-        {isSignedIn && <p className="text-[11px] font-semibold text-emerald-700">✓ Signed in — unlimited free downloads</p>}
+        {needsUpgrade && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4">
+            <div className="text-sm font-semibold text-slate-900">You&apos;re out of SkirrNow AI tokens</div>
+            <p className="mt-1 text-xs text-slate-600">
+              Each branded creation draws from your monthly AI-token allowance, and it&apos;s used up for this cycle.
+              Upgrade to keep creating, or wait for your next reset.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link href="/#pricing" className="rounded bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-hover">See paid plans →</Link>
+              <Link href="/dashboard/usage" className="rounded border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">View my usage</Link>
+            </div>
+          </div>
+        )}
+        {isSignedIn && !needsUpgrade && <p className="text-[11px] font-semibold text-emerald-700">✓ Signed in — each creation draws from your SkirrNow AI tokens</p>}
 
         <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">
           <span className="font-semibold text-slate-900">Want more?</span> Save this brand kit once and it auto-applies

@@ -22,7 +22,8 @@ export default function BrandStudioPage() {
         </h1>
         <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
           Drop in a photo or video, add your logo, name, tagline and colors, and download a polished branded
-          result — free, instant, and entirely in your browser. Unlimited, no credit card — just a free account.
+          result — instant and entirely in your browser. Free with an account (no credit card); each creation draws
+          from your monthly SkirrNow AI-token allowance.
         </p>
         <div className="mt-10">
           <BrandStudio isSignedIn={!!userId} />

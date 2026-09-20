@@ -67,7 +67,7 @@ export default function UsagePage() {
         <ul className="mt-1.5 space-y-1">
           <li>• {data.claude.cap == null ? "Unlimited" : compact(data.claude.cap)} SkirrNow AI tokens for copy &amp; audits this cycle</li>
           <li>• {data.credits.cap == null ? "Unlimited" : num(data.credits.cap)} Graphics, Video &amp; Web credits this cycle</li>
-          <li>• Brand Studio — brand unlimited images &amp; videos, always free</li>
+          <li>• Brand Studio — brand images &amp; videos; each creation draws from your SkirrNow AI tokens</li>
           {data.freeAds ? (
             <li className="flex items-center gap-2">
               <span>
