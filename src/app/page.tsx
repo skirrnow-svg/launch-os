@@ -211,6 +211,51 @@ export default async function HomePage() {
         </p>
       </section>
 
+      {/* Free tools rail — pick a use case (horizontally scrollable, extensible) */}
+      <section className="border-t border-slate-200 bg-slate-50">
+        <div className="mx-auto max-w-6xl px-6 py-14">
+          <p className="mb-2 font-mono text-xs uppercase tracking-widest text-accent">Start free · pick a use case</p>
+          <h2 className="font-display text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+            Try SkirrNow with no card — choose your starting point
+          </h2>
+          <div className="mt-7 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 [scrollbar-width:thin]">
+            {[
+              {
+                href: "/free",
+                emoji: "🎬",
+                tag: "Free · Product-to-Ad",
+                title: "Product-to-Ad Generator",
+                blurb: "Paste your website → three viral hooks, an instant AI marketing audit, and a short animated ad teaser.",
+                cta: "Generate my free ad",
+              },
+              {
+                href: "/brand-studio",
+                emoji: "🎨",
+                tag: "Free · Brand Studio",
+                title: "Brand any image or video",
+                blurb: "Drop in a photo or clip → stamp it on-brand with your logo, name, tagline and colors in seconds. No AI credits.",
+                cta: "Brand my media",
+              },
+            ].map((h) => (
+              <Link
+                key={h.href}
+                href={h.href}
+                className="group flex min-w-[290px] max-w-[330px] snap-start flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-colors hover:border-accent"
+              >
+                <div className="text-3xl">{h.emoji}</div>
+                <p className="mt-3 font-mono text-[11px] uppercase tracking-wider text-accent">{h.tag}</p>
+                <div className="mt-1 font-display text-lg font-bold text-slate-900">{h.title}</div>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-slate-600">{h.blurb}</p>
+                <span className="mt-4 inline-flex font-semibold text-accent group-hover:underline">{h.cta} →</span>
+              </Link>
+            ))}
+          </div>
+          <p className="mt-1 font-mono text-[11px] uppercase tracking-wider text-slate-400">
+            More free tools coming — scroll →
+          </p>
+        </div>
+      </section>
+
       {/* Free Product-to-Ad generator band */}
       <section className="border-y border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-6 py-16">
