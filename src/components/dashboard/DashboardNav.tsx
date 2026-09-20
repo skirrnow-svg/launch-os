@@ -55,16 +55,26 @@ export default function DashboardNav() {
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logoUrl} alt={brandName || "Workspace"} className="max-h-9 w-auto" />
         ) : (
-          <div className="font-display font-bold tracking-tight text-lg">
+          <div className="truncate font-display text-lg font-bold tracking-tight" title={isAgency && brandName ? brandName : "Launch OS"}>
             {isAgency && brandName ? brandName : "Launch OS"}
           </div>
         )}
-        <div className="mt-2">
+        <div className="mt-2 max-w-full overflow-hidden">
           <OrganizationSwitcher
             hidePersonal={false}
             afterCreateOrganizationUrl="/dashboard"
             afterSelectOrganizationUrl="/dashboard"
             afterSelectPersonalUrl="/dashboard"
+            appearance={{
+              elements: {
+                rootBox: "w-full max-w-full",
+                organizationSwitcherTrigger: "w-full max-w-full justify-between overflow-hidden",
+                organizationPreview: "min-w-0",
+                organizationPreviewTextContainer: "min-w-0",
+                organizationPreviewMainIdentifier: "truncate",
+                organizationPreviewSecondaryIdentifier: "truncate",
+              },
+            }}
           />
         </div>
       </div>

@@ -18,8 +18,9 @@ const SRC_NOTE: Record<string, string> = { plan: "from plan", free: "free tier",
 const num = (n: number) => n.toLocaleString("en-IN");
 const compact = (n: number) => Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }).format(n);
 const when = (s: string) => new Date(s).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
-// Customer-facing label for the media provider (internal id stays "higgsfield").
-const providerLabel = (p: string) => (p === "higgsfield" ? "Graphics, Video & Web" : p === "claude" ? "Claude" : p);
+// Customer-facing labels (internal ids stay "higgsfield" / "claude"). We
+// white-label the model provider as "SkirrNow AI".
+const providerLabel = (p: string) => (p === "higgsfield" ? "Graphics, Video & Web" : p === "claude" ? "SkirrNow AI" : p);
 
 export default function UsagePage() {
   const [data, setData] = useState<Data | null>(null);
@@ -43,8 +44,8 @@ export default function UsagePage() {
       <h1 className="mt-2 font-display text-2xl font-bold tracking-tight">Usage</h1>
       <p className="mt-1 text-sm text-slate-500">
         Your workspace&apos;s AI spend for the current billing period, metered on two axes — Graphics, Video &amp; Web
-        credits for media and Claude tokens for copy &amp; audits. Allowances come from your plan and reset each cycle.
-        Claude tokens are estimated (≈4 chars/token) until exact metering lands.
+        credits for media and SkirrNow AI tokens for copy &amp; audits. Allowances come from your plan and reset each
+        cycle. SkirrNow AI tokens are estimated (≈4 chars/token) until exact metering lands.
       </p>
 
       {/* Plan + period */}
@@ -57,10 +58,23 @@ export default function UsagePage() {
         <span className="font-mono text-[11px] uppercase tracking-wider text-slate-400">resets {new Date(data.period.end).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</span>
       </div>
 
+      {/* What you get this cycle — spells out the (free) allowance explicitly */}
+      <div className="mt-3 rounded border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-slate-700">
+        <span className="font-semibold text-slate-900">
+          Your {data.plan.name} plan{data.claude.source === "free" ? " (free, no credit card)" : ""} includes:
+        </span>
+        <ul className="mt-1.5 space-y-1">
+          <li>• {data.claude.cap == null ? "Unlimited" : compact(data.claude.cap)} SkirrNow AI tokens for copy &amp; audits this cycle</li>
+          <li>• {data.credits.cap == null ? "Unlimited" : num(data.credits.cap)} Graphics, Video &amp; Web credits this cycle</li>
+          <li>• Brand Studio — brand unlimited images &amp; videos, always free</li>
+          <li>• 2 free Product-to-Ad audits{data.claude.source === "free" ? ", then upgrade for more" : ""}</li>
+        </ul>
+      </div>
+
       {/* Budgets */}
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <BudgetCard title="Graphics, Video & Web credits" unit="credits" b={data.credits} fmt={num} />
-        <BudgetCard title="Claude tokens" unit="tokens" b={data.claude} fmt={compact} />
+        <BudgetCard title="SkirrNow AI tokens" unit="tokens" b={data.claude} fmt={compact} />
       </div>
 
       {/* Ledger */}
