@@ -31,6 +31,15 @@ evolves.
   (Hostinger `hcdn` serves public images with a 1-year cache).
 - Source (recolored, lime): `~/Downloads/logo_skirrnow_lime.png` and `..._mark_transparent.png`.
 
+## Favicon / app-icon set (in `public/`)
+Standard cross-browser/device set (realfavicongenerator output), wired via
+`layout.tsx` `metadata.icons` + `manifest` + `viewport.themeColor`:
+- `favicon.ico` (16/32 multi-res), `favicon-16x16.png`, `favicon-32x32.png` — browser tabs.
+- `apple-touch-icon.png` (180×180) — iOS home screen.
+- `android-chrome-192x192.png`, `android-chrome-512x512.png` — Android / PWA (512 also maskable).
+- `site.webmanifest` — name **SkirrNow**, theme+bg `#0E0D12`, `display: standalone`.
+- Source folder: `~/Downloads/favicon_ico_skirrnow/`. These are **new filenames** → no `?v=` cache-bust needed on first deploy; bump only if a same-named icon is later swapped.
+
 ## Generation prompts (Higgsfield / any image model)
 
 > **Two gotchas:** (1) Higgsfield's `ip_detected` filter blocks brand names/domains —
