@@ -6,6 +6,8 @@ import { triggerRunner } from "@/lib/jobs";
 import { activeProvider } from "@/lib/generation/adapter";
 import { assertOrgBudget } from "@/lib/credits";
 import { isBudgetExceeded } from "@/lib/errors";
+import { randomUUID } from "crypto";
+import { sendReviewRequest } from "@/lib/reviewRequests";
 
 export const runtime = "nodejs";
 
@@ -192,6 +194,26 @@ export const POST = withErrors<unknown>(async (request) => {
     },
     select: { id: true, status: true },
   });
+
+  // Review requests (email-only for now). Create a row per contact, then send
+  // best-effort if we have a Google listing to point them at; otherwise leave
+  // the row `queued` for a later send.
+  for (const c of contacts) {
+    try {
+      const rr = await prisma.review_requests.create({
+        data: {
+          org_id: org.id, project_id: project.id, created_by: user.id,
+          contact_name: c.name || null, contact_email: c.email,
+          channel: "email", status: "queued",
+          google_place_url: googlePlaceUrl || null, token: randomUUID(),
+        },
+        select: { id: true },
+      });
+      if (googlePlaceUrl) await sendReviewRequest(rr.id);
+    } catch {
+      /* non-fatal: a failed review-request row never blocks the kit */
+    }
+  }
 
   // One nudge to the runner; the cron safety-net also picks up queued rows.
   await triggerRunner("generate");
