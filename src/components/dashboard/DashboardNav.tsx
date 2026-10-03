@@ -18,6 +18,7 @@ type OrgInfo = {
 
 const BASE = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/dashboard/presence-kit", label: "Presence Kit" },
   { href: "/dashboard/projects", label: "Projects" },
   { href: "/dashboard/pitch", label: "Instant Pitch" },
   { href: "/dashboard/audience", label: "Audience" },
