@@ -630,3 +630,58 @@ model landing_pages {
   @@index([project_id, created_at(sort: Desc)], map: "idx_landing_pages_project")
   @@index([status], map: "idx_landing_pages_status")
 }
+
+// --- Module 1: AI Presence Kit --------------------------------------------
+// One-button "presence kit" job. Orchestrates a landing page + media assets +
+// a review-request flow for a business (= a ClientProfile on a project).
+// Tenancy is by org_id (plain column + index, same pattern as `visits`); no
+// Prisma relation so the migration stays additive and touches no other model.
+model presence_kits {
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id            String   @db.Uuid
+  project_id        String   @db.Uuid
+  client_profile_id String? // ClientProfile.id is a cuid (String), not a uuid
+  status            String   @default("queued") // queued | generating | ready | partial | error
+  business_name     String
+  category          String?
+  location          String?
+  inputs            Json?    @default("{}") // raw form inputs (contacts, photo URLs, brand hints)
+  landing_page_id   String?  @db.Uuid
+  asset_ids         String[] @default([]) @db.Uuid
+  error             String?
+  created_by        String?  @db.Uuid
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([org_id], map: "idx_presence_kits_org")
+  @@index([project_id], map: "idx_presence_kits_project")
+  @@index([status], map: "idx_presence_kits_status")
+}
+
+// A Google review-request sent to a business's customer. Email-only for now
+// (Resend); `channel` leaves room for WhatsApp after DLT/BSP clears. `token`
+// is the click-tracking id embedded in the review link.
+model review_requests {
+  id                String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  org_id            String    @db.Uuid
+  project_id        String    @db.Uuid
+  client_profile_id String?
+  contact_name      String?
+  contact_email     String    @db.Citext
+  channel           String    @default("email") // email | whatsapp (later)
+  status            String    @default("queued") // queued | sent | clicked | reviewed | bounced | error
+  google_place_url  String?
+  token             String    @unique
+  message           String?
+  sent_at           DateTime? @db.Timestamptz(6)
+  clicked_at        DateTime? @db.Timestamptz(6)
+  reviewed_at       DateTime? @db.Timestamptz(6)
+  error             String?
+  created_by        String?   @db.Uuid
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([org_id], map: "idx_review_requests_org")
+  @@index([project_id], map: "idx_review_requests_project")
+  @@index([status], map: "idx_review_requests_status")
+}
