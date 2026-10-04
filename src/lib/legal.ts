@@ -16,7 +16,7 @@ export const LEGAL = {
   address: "C/o Jarson Colaco, 116A, Bansai, Curchorem, Goa 403706",
   governingCity: "Goa", // seat of courts for the jurisdiction clause
   governingLaw: "India",
-  contactEmail: "dextor@skirrnow.com",
+  contactEmail: "support@skirrnow.com",
   grievanceEmail: "business@dcautomation.in",
   website: "https://skirrnow.com",
   updated: "4 October 2026",
