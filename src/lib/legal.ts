@@ -7,16 +7,19 @@
  * but the exact registered identity was not yet supplied.
  */
 export const LEGAL = {
-  brand: "SkirrNow Launch OS",
+  brand: "SkirrNow",
   shortBrand: "SkirrNow",
-  entity: "[Company Legal Name Pvt. Ltd.]", // registered legal name — fill in
-  cin: "[CIN / Company Registration No.]", // fill in
-  address: "[Registered Office Address, City, State, PIN]", // fill in
-  governingCity: "[City]", // seat of courts for jurisdiction clause — fill in
+  // SkirrNow is a product operated by its registered parent company.
+  entity: "DC AUTOMATION SYSTEMS (OPC) PRIVATE LIMITED",
+  cin: "U72900GA2022OPC015390",
+  gstin: "30AAJCD4251A1ZE",
+  address: "C/o Jarson Colaco, 116A, Bansai, Curchorem, Goa 403706",
+  governingCity: "Goa", // seat of courts for the jurisdiction clause
   governingLaw: "India",
   contactEmail: "dextor@skirrnow.com",
+  grievanceEmail: "business@dcautomation.in",
   website: "https://skirrnow.com",
-  updated: "14 September 2026",
+  updated: "4 October 2026",
 } as const;
 
 /** True when identity placeholders are still unfilled (drives the on-page banner). */
