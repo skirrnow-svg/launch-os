@@ -7,6 +7,7 @@
  */
 import { prisma } from "@/lib/db";
 import { sendEmail } from "@/lib/resend";
+import { isWhatsAppConfigured, reviewTemplateName, sendWhatsAppTemplate } from "@/lib/whatsapp";
 
 /** Public base URL for tracked links. */
 export function appUrl(): string {
@@ -44,13 +45,50 @@ function escapeHtml(s: string): string {
  */
 export async function sendReviewRequest(id: string): Promise<void> {
   const rr = await prisma.review_requests.findUnique({ where: { id } }).catch(() => null);
-  if (!rr || rr.channel !== "email" || !rr.contact_email) return;
+  if (!rr) return;
 
   // Business name comes from the kit on the same project (fallback: generic).
   const kit = await prisma.presence_kits
     .findFirst({ where: { project_id: rr.project_id }, orderBy: { created_at: "desc" }, select: { business_name: true } })
     .catch(() => null);
   const businessName = kit?.business_name || "our team";
+
+  // ── WhatsApp channel ──────────────────────────────────────────────────────
+  if (rr.channel === "whatsapp") {
+    if (!rr.contact_phone || !isWhatsAppConfigured()) {
+      await prisma.review_requests
+        .update({
+          where: { id },
+          data: {
+            status: "error",
+            error: !rr.contact_phone ? "no contact_phone for whatsapp channel" : "whatsapp not configured",
+            updated_at: new Date(),
+          },
+        })
+        .catch(() => {});
+      return;
+    }
+    try {
+      // TODO(SN84): swap hello_world for an approved review template (WHATSAPP_REVIEW_TEMPLATE)
+      // whose body carries the business name and a URL button to reviewLink(rr.token).
+      await sendWhatsAppTemplate({ to: rr.contact_phone, template: reviewTemplateName(), languageCode: "en_US" });
+      await prisma.review_requests.update({
+        where: { id },
+        data: { status: "sent", sent_at: new Date(), updated_at: new Date() },
+      });
+    } catch (e) {
+      await prisma.review_requests
+        .update({
+          where: { id },
+          data: { status: "error", error: e instanceof Error ? e.message.slice(0, 500) : "send failed", updated_at: new Date() },
+        })
+        .catch(() => {});
+    }
+    return;
+  }
+
+  // ── Email channel (default) ───────────────────────────────────────────────
+  if (rr.channel !== "email" || !rr.contact_email) return;
 
   try {
     await sendEmail({

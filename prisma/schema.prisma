@@ -668,7 +668,8 @@ model review_requests {
   client_profile_id String?
   contact_name      String?
   contact_email     String    @db.Citext
-  channel           String    @default("email") // email | whatsapp (later)
+  contact_phone     String? // E.164 (digits), required for channel = whatsapp
+  channel           String    @default("email") // email | whatsapp
   status            String    @default("queued") // queued | sent | clicked | reviewed | bounced | error
   google_place_url  String?
   token             String    @unique
