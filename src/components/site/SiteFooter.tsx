@@ -16,7 +16,7 @@ export default function SiteFooter() {
           </span>
         </div>
         <p className="text-sm text-slate-500">
-          The autonomous AI ad agency.
+          AI web presence &amp; customer messaging for small businesses.
         </p>
         <div className="flex gap-5 text-sm text-slate-500">
           <Link href="/#pricing" className="hover:text-slate-900">Pricing</Link>
