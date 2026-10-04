@@ -182,15 +182,16 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-24">
         <p className="mb-5 inline-flex items-center rounded border border-slate-200 px-3 py-1 font-mono text-xs uppercase tracking-widest text-accent">
-          AI web presence + customer messaging for small businesses
+          AI web presence + customer messaging — for businesses &amp; the agencies that serve them
         </p>
         <h1 className="max-w-4xl font-display text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-6xl">
-          Get your business online — and keep customers coming back.
+          Get a business online — and keep its customers coming back.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-600">
-          SkirrNow builds a small business&apos;s full web presence — a landing page, social graphics and a
+          SkirrNow builds a business&apos;s full web presence — a landing page, social graphics and a
           short video — then helps it reach its own customers with review-request flows and WhatsApp
-          messaging, all from one dashboard. An AI crew does the work; you approve before anything ships.
+          messaging, all from one dashboard. Run it for your own business, or white-label it and run it
+          for every client. An AI crew does the work; you approve before anything ships.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link

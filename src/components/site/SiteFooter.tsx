@@ -16,7 +16,7 @@ export default function SiteFooter() {
           </span>
         </div>
         <p className="text-sm text-slate-500">
-          AI web presence &amp; customer messaging for small businesses.
+          AI web presence &amp; customer messaging — for businesses &amp; the agencies that serve them.
         </p>
         <div className="flex gap-5 text-sm text-slate-500">
           <Link href="/#pricing" className="hover:text-slate-900">Pricing</Link>
