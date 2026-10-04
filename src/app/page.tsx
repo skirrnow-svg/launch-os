@@ -182,15 +182,15 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-6 pb-16 pt-16 sm:pt-24">
         <p className="mb-5 inline-flex items-center rounded border border-slate-200 px-3 py-1 font-mono text-xs uppercase tracking-widest text-accent">
-          Agentic marketing operating system
+          AI web presence + customer messaging for small businesses
         </p>
         <h1 className="max-w-4xl font-display text-4xl font-bold leading-[1.05] tracking-tight text-slate-900 sm:text-6xl">
-          Your marketing team is now a team of AI agents.
+          Get your business online — and keep customers coming back.
         </h1>
         <p className="mt-6 max-w-2xl text-lg leading-relaxed text-slate-600">
-          SkirrNow Launch OS runs a coordinated crew of autonomous agents that plan, produce, optimize and
-          distribute your campaigns across search, social, paid ads and email. They perceive your market,
-          reason about the play, and act — from a single URL to a shipped campaign.
+          SkirrNow builds a small business&apos;s full web presence — a landing page, social graphics and a
+          short video — then helps it reach its own customers with review-request flows and WhatsApp
+          messaging, all from one dashboard. An AI crew does the work; you approve before anything ships.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link

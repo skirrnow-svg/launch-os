@@ -19,9 +19,9 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "SkirrNow — AI ad agency for solopreneurs & agencies",
+  title: "SkirrNow — AI web presence & customer messaging for small businesses",
   description:
-    "SkirrNow qualifies inbound leads, verifies the business, checks claims for legal risk, and produces sample ad copy and a concept video — with a one-click human approval gate.",
+    "SkirrNow builds a small business's web presence — landing page, social graphics and video — then helps it reach its own customers with review-request flows and WhatsApp messaging, all from one dashboard with human approval before anything ships.",
   manifest: "/site.webmanifest?v=2",
   icons: {
     icon: [
