@@ -19,7 +19,7 @@ export const LEGAL = {
   contactEmail: "support@skirrnow.com",
   grievanceEmail: "business@dcautomation.in",
   website: "https://skirrnow.com",
-  updated: "4 October 2026",
+  updated: "10 October 2026",
 } as const;
 
 /** True when identity placeholders are still unfilled (drives the on-page banner). */
